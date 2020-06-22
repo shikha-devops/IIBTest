@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:ComIbmCompute.msgnode="ComIbmCompute.msgnode" xmlns:ComIbmSOAPRequest.msgnode="ComIbmSOAPRequest.msgnode" xmlns:ComIbmWSInput.msgnode="ComIbmWSInput.msgnode" xmlns:ComIbmWSReply.msgnode="ComIbmWSReply.msgnode" xmlns:ComIbmWSRequest.msgnode="ComIbmWSRequest.msgnode" xmlns:SF_MOM_ExceptionHandling.subflow="SF_MOM_ExceptionHandling.subflow" xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:eflow="http://www.ibm.com/wbi/2005/eflow"
+    xmlns:mbmonitor="http://www.ibm.com/wbi/2008/eflow_mbmonitor" xmlns:utility="http://www.ibm.com/wbi/2005/eflow_utility" nsURI="MF_WCS_InventoryReservation_2_SYNC.msgflow" nsPrefix="MF_WCS_InventoryReservation_2_SYNC.msgflow">
+  <eClassifiers xmi:type="eflow:FCMComposite" name="FCMComposite_1">
+    <eSuperTypes href="http://www.ibm.com/wbi/2005/eflow#//FCMBlock"/>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.LAMBDA_CONTENT_TYPE" name="LAMBDA_CONTENT_TYPE" lowerBound="1" defaultValueLiteral="application/json">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.LAMBDA_API_KEY" name="LAMBDA_API_KEY" lowerBound="1" defaultValueLiteral="4K7pVwGcZra1XVyrAbYrX3fLynOK7Bg661SDq7uM">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.OMS_userId" name="OMS_userId" lowerBound="1" defaultValueLiteral="wmbintg">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.OMS_programId" name="OMS_programId" lowerBound="1" defaultValueLiteral="Myer@12345">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.IIB_URL" name="IIB_URL" lowerBound="1" defaultValueLiteral="/eai/inventoryreservation2.0/wcs">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.ACH_URL" name="ACH_URL" lowerBound="1" defaultValueLiteral="https://hubapiuat.alphacommercehub.com.au/">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.LAMBDA_URL" name="LAMBDA_URL" lowerBound="1" defaultValueLiteral="https://dev-b-api-internal.dev.aws.myer.com.au/v1/delivery-options/filter">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.OMS_URL" name="OMS_URL" defaultValueLiteral="http://10.211.4.152:9080/yantrawebservices/services/YIFWebService">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.OMS_URL.internal_npcompiler" name="OMS_URL.internal_npcompiler">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.OMS_TimeOut" name="OMS_TimeOut" defaultValueLiteral="120">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.OMS_TimeOut.internal_npcompiler" name="OMS_TimeOut.internal_npcompiler">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.ACH_TimeOut" name="ACH_TimeOut" lowerBound="1" defaultValueLiteral="120">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.LAMBDA_TimeOut" name="LAMBDA_TimeOut" lowerBound="1" defaultValueLiteral="120">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.IIB_TimeOut" name="IIB_TimeOut" lowerBound="1" defaultValueLiteral="180">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+    </eStructuralFeatures>
+    <translation xmi:type="utility:TranslatableString" key="MF_WCS_InventoryReservation_2_SYNC" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+    <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/APP_InventoryReservation_2.0/icons/full/obj16/MF_WCS_InventoryReservation_2_SYNC.gif"/>
+    <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/APP_InventoryReservation_2.0/icons/full/obj30/MF_WCS_InventoryReservation_2_SYNC.gif"/>
+    <composition>
+      <nodes xmi:type="ComIbmWSInput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="-25,220" URLSpecifier="/eai/inventoryreservation2.0/wcs1" messageDomainProperty="JSON">
+        <translation xmi:type="utility:ConstantString" string="HTTPI_WCSRequest"/>
+        <monitorEvents eventSourceDescription="Transaction start" eventSourceName="HTTPI_WCSRequest.transaction.Start" eventIdentity="HTTPI_WCSRequest.TransactionStart">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Root/JSON/Data/orderId" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTPI_WCSRequest.TransactionStart"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+      </nodes>
+      <nodes xmi:type="ComIbmSOAPRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_4" location="104,224" wsdlFileName="MS_MOM_OMS_WebServices/com/yantra/interop/services/webservices/rpc/ejb/MOM_OMS_Webservices.wsdl" selectedPortType="YIFWebService" selectedBinding="YIFWebServiceSoapBinding" selectedOperation="myer_InventoryReservation" selectedPort="YIFWebService" targetNamespace="http://ejb.rpc.webservices.services.interop.yantra.com" useHTTPTransport="true" webServiceURL="http://oms-app01.dev-master.dev.aws.myer.internal:9080/yantrawebservices/services/YIFWebService"
+          sslProtocol="TLS">
+        <translation xmi:type="utility:ConstantString" string="SOAPRQ_InvokeOMSService"/>
+        <monitorEvents eventSourceDescription="In terminal" eventSourceName="SOAPRQ_InvokeOMSService.terminal.in" eventIdentity="SOAPRQ_InvokeOMSService.InTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="SOAPRQ_InvokeOMSService.InTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+        <monitorEvents eventSourceDescription="Failure terminal" eventSourceName="SOAPRQ_InvokeOMSService.terminal.failure" eventIdentity="SOAPRQ_InvokeOMSService.FailureTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo " eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="SOAPRQ_InvokeOMSService.FailureTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+        <monitorEvents eventSourceDescription="Out terminal" eventSourceName="SOAPRQ_InvokeOMSService.terminal.out" eventIdentity="SOAPRQ_InvokeOMSService.OutTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo " eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="SOAPRQ_InvokeOMSService.OutTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+        <monitorEvents eventSourceDescription="Fault terminal" eventSourceName="SOAPRQ_InvokeOMSService.terminal.fault" eventIdentity="SOAPRQ_InvokeOMSService.FaultTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="SOAPRQ_InvokeOMSService.FaultTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_7" location="243,151" computeExpression="esql://routine/#CMP_ProcessOMSResponse.Main">
+        <translation xmi:type="utility:ConstantString" string="CMP_ProcessOMSResponse"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_8" location="1002,242" computeExpression="esql://routine/#CMP_BuildWCSResponse.Main">
+        <translation xmi:type="utility:ConstantString" string="CMP_BuildWCSResponse"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_9" location="361,99" dataSource="BRKDLGDB" computeExpression="esql://routine/#CMP_BuildACHRequest.Main">
+        <translation xmi:type="utility:ConstantString" string="CMP_BuildACHRequest"/>
+      </nodes>
+      <nodes xmi:type="ComIbmWSReply.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_12" location="1096,179">
+        <translation xmi:type="utility:ConstantString" string="HTTPR_PostWCSResponse"/>
+        <monitorEvents eventSourceDescription="In terminal" eventSourceName="HTTPR_PostWCSResponse.terminal.in" eventIdentity="HTTPR_PostWCSResponse.InTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTPR_PostWCSResponse.InTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+      </nodes>
+      <nodes xmi:type="SF_MOM_ExceptionHandling.subflow:FCMComposite_1" xmi:id="FCMComposite_1_13" location="138,318">
+        <translation xmi:type="utility:ConstantString" string="SF_MOM_ExceptionHandling"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_14" location="773,60" computeExpression="esql://routine/#CMP_ProcessACHResponse.Main">
+        <translation xmi:type="utility:ConstantString" string="CMP_ProcessACHResponse"/>
+      </nodes>
+      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="432,14" URLSpecifier="https://hubapiuat.alphacommercehub.com.au/" httpVersion="1.1" protocol="TLSv1.2" messageDomainProperty="JSON">
+        <translation xmi:type="utility:ConstantString" string="HTTP_Invoke_ACH_GetItemPrice"/>
+        <monitorEvents eventSourceDescription="In terminal" eventSourceName="HTTP_Invoke_ACH_GetItemPrice.terminal.in" eventIdentity="HTTP_Invoke_ACH_GetItemPrice.InTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTP_Invoke_ACH_GetItemPrice.InTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+        <monitorEvents eventSourceDescription="Failure terminal" eventSourceName="HTTP_Invoke_ACH_GetItemPrice.terminal.failure" eventIdentity="HTTP_Invoke_ACH_GetItemPrice.FailureTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTP_Invoke_ACH_GetItemPrice.FailureTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+        <monitorEvents eventSourceDescription="Out terminal" eventSourceName="HTTP_Invoke_ACH_GetItemPrice.terminal.out" eventIdentity="HTTP_Invoke_ACH_GetItemPrice.OutTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTP_Invoke_ACH_GetItemPrice.OutTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+        <monitorEvents eventSourceDescription="Error terminal" eventSourceName="HTTP_Invoke_ACH_GetItemPrice.terminal.error" eventIdentity="HTTP_Invoke_ACH_GetItemPrice.ErrorTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTP_Invoke_ACH_GetItemPrice.ErrorTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_3" location="72,84" computeExpression="esql://routine/#CMP_TransformWCStoOMS.Main">
+        <translation xmi:type="utility:ConstantString" string="CMP_TransformWCStoOMS"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_5" location="430,220" computeExpression="esql://routine/#CMP_BuildLambdaRequest.Main" computeMode="all">
+        <translation xmi:type="utility:ConstantString" string="CMP_BuildLambdaRequest"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_16" location="755,339" computeExpression="esql://routine/#CMP_ProcessLambdaResponse.Main">
+        <translation xmi:type="utility:ConstantString" string="CMP_ProcessLambdaResponse"/>
+      </nodes>
+      <nodes xmi:type="ComIbmWSRequest.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_6" location="564,230" URLSpecifier="https://dev-master-api-internal.dev.aws.myer.com.au/v1/delivery-options/filter" httpVersion="1.1" protocol="TLSv1.2" messageDomainProperty="JSON">
+        <translation xmi:type="utility:ConstantString" string="HTTP_Invoke_lambdaAPI"/>
+        <monitorEvents eventSourceDescription="In terminal" eventSourceName="HTTP_Invoke_lambdaAPI.terminal.in" eventIdentity="HTTP_Invoke_lambdaAPI.InTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTP_Invoke_lambdaAPI.InTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+        <monitorEvents eventSourceDescription="Failure terminal" eventSourceName="HTTP_Invoke_lambdaAPI.terminal.failure" eventIdentity="HTTP_Invoke_lambdaAPI.FailureTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTP_Invoke_lambdaAPI.FailureTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+        <monitorEvents eventSourceDescription="Out terminal" eventSourceName="HTTP_Invoke_lambdaAPI.terminal.out" eventIdentity="HTTP_Invoke_lambdaAPI.OutTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTP_Invoke_lambdaAPI.OutTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+        <monitorEvents eventSourceDescription="Error terminal" eventSourceName="HTTP_Invoke_lambdaAPI.terminal.error" eventIdentity="HTTP_Invoke_lambdaAPI.ErrorTerminal">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent">
+            <globalTransactionCorrelator dataLocation="$Environment/Variables/XMLKeyFields/ActionCode" eventCorrelation="dataLocation"/>
+            <parentTransactionCorrelator dataLocation="$Environment/Variables/SalesOrderNo" eventCorrelation="dataLocation"/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="HTTP_Invoke_lambdaAPI.ErrorTerminal"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+      </nodes>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_7" targetNode="FCMComposite_1_7" sourceNode="FCMComposite_1_4" sourceTerminalName="OutTerminal.failure" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_8" targetNode="FCMComposite_1_7" sourceNode="FCMComposite_1_4" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_9" targetNode="FCMComposite_1_7" sourceNode="FCMComposite_1_4" sourceTerminalName="OutTerminal.fault" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_18" targetNode="FCMComposite_1_12" sourceNode="FCMComposite_1_8" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_21" targetNode="FCMComposite_1_8" sourceNode="FCMComposite_1_13" sourceTerminalName="OutTerminal.Output1" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_11" targetNode="FCMComposite_1_13" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.catch" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_3" targetNode="FCMComposite_1_2" sourceNode="FCMComposite_1_9" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_4" targetNode="FCMComposite_1_14" sourceNode="FCMComposite_1_2" sourceTerminalName="OutTerminal.failure" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_5" targetNode="FCMComposite_1_14" sourceNode="FCMComposite_1_2" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_6" targetNode="FCMComposite_1_14" sourceNode="FCMComposite_1_2" sourceTerminalName="OutTerminal.error" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_2" targetNode="FCMComposite_1_4" sourceNode="FCMComposite_1_3" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_1" targetNode="FCMComposite_1_3" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_22" targetNode="FCMComposite_1_5" sourceNode="FCMComposite_1_9" sourceTerminalName="OutTerminal.out1" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_16" targetNode="FCMComposite_1_8" sourceNode="FCMComposite_1_16" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_17" targetNode="FCMComposite_1_8" sourceNode="FCMComposite_1_7" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_10" targetNode="FCMComposite_1_9" sourceNode="FCMComposite_1_7" sourceTerminalName="OutTerminal.out2" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_15" targetNode="FCMComposite_1_6" sourceNode="FCMComposite_1_5" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_19" targetNode="FCMComposite_1_16" sourceNode="FCMComposite_1_6" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_20" targetNode="FCMComposite_1_8" sourceNode="FCMComposite_1_14" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_24" targetNode="FCMComposite_1_16" sourceNode="FCMComposite_1_6" sourceTerminalName="OutTerminal.failure" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_25" targetNode="FCMComposite_1_16" sourceNode="FCMComposite_1_6" sourceTerminalName="OutTerminal.error" targetTerminalName="InTerminal.in"/>
+    </composition>
+    <propertyOrganizer>
+      <propertyDescriptor groupName="Group.Basic" configurable="true" userDefined="true" describedAttribute="Property.LAMBDA_CONTENT_TYPE">
+        <propertyName xmi:type="utility:TranslatableString" key="Property.LAMBDA_CONTENT_TYPE" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+        <propertyDescriptor groupName="Group.Basic" configurable="true" userDefined="true" describedAttribute="Property.LAMBDA_API_KEY">
+          <propertyName xmi:type="utility:TranslatableString" key="Property.LAMBDA_API_KEY" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+          <propertyDescriptor groupName="Group.Basic" configurable="true" userDefined="true" describedAttribute="Property.OMS_userId">
+            <propertyName xmi:type="utility:TranslatableString" key="Property.OMS_userId" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+            <propertyDescriptor groupName="Group.Basic" configurable="true" userDefined="true" describedAttribute="Property.OMS_programId">
+              <propertyName xmi:type="utility:TranslatableString" key="Property.OMS_programId" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+              <propertyDescriptor groupName="Group.URL" propertyEditor="com.ibm.etools.mft.ibmnodes.editors.URLPropertyEditor" configurable="true" describedAttribute="Property.IIB_URL">
+                <propertyName xmi:type="utility:TranslatableString" key="Property.IIB_URL" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                <propertyDescriptor groupName="Group.URL" propertyEditor="com.ibm.etools.mft.ibmnodes.editors.URLPropertyEditor" configurable="true" describedAttribute="Property.ACH_URL">
+                  <propertyName xmi:type="utility:TranslatableString" key="Property.ACH_URL" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                  <propertyDescriptor groupName="Group.URL" propertyEditor="com.ibm.etools.mft.ibmnodes.editors.URLPropertyEditor" configurable="true" describedAttribute="Property.LAMBDA_URL">
+                    <propertyName xmi:type="utility:TranslatableString" key="Property.LAMBDA_URL" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                    <propertyDescriptor groupName="Group.URL" propertyEditor="com.ibm.etools.mft.ibmnodes.editors.soap.http.SOAP_Over_HTTP_WebServicesURLPropertyEditor" compiler="com.ibm.etools.mft.ibmnodes.compilers.GenericSOAPCompiler" configurable="true" describedAttribute="Property.OMS_URL">
+                      <propertyName xmi:type="utility:TranslatableString" key="Property.OMS_URL" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                      <propertyDescriptor groupName="Group.InternalRuntimeGroup" readOnly="true" hidden="true" userDefined="true" describedAttribute="Property.OMS_URL.internal_npcompiler">
+                        <propertyName xmi:type="utility:TranslatableString" key="Property.OMS_URL.internal_npcompiler" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                        <propertyDescriptor groupName="Group.TIME_OUT" propertyEditor="com.ibm.etools.mft.ibmnodes.editors.soap.http.GenericSOAPOverHTTPPositiveIntegerNonMandatoryPropertyEditor" compiler="com.ibm.etools.mft.ibmnodes.compilers.GenericSOAPCompiler" configurable="true" describedAttribute="Property.OMS_TimeOut">
+                          <propertyName xmi:type="utility:TranslatableString" key="Property.OMS_TimeOut" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                          <propertyDescriptor groupName="Group.InternalRuntimeGroup" readOnly="true" hidden="true" userDefined="true" describedAttribute="Property.OMS_TimeOut.internal_npcompiler">
+                            <propertyName xmi:type="utility:TranslatableString" key="Property.OMS_TimeOut.internal_npcompiler" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                            <propertyDescriptor groupName="Group.TIME_OUT" propertyEditor="com.ibm.etools.mft.ibmnodes.editors.PositiveIntegerPropertyEditor" configurable="true" describedAttribute="Property.ACH_TimeOut">
+                              <propertyName xmi:type="utility:TranslatableString" key="Property.ACH_TimeOut" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                              <propertyDescriptor groupName="Group.TIME_OUT" propertyEditor="com.ibm.etools.mft.ibmnodes.editors.PositiveIntegerPropertyEditor" configurable="true" describedAttribute="Property.LAMBDA_TimeOut">
+                                <propertyName xmi:type="utility:TranslatableString" key="Property.LAMBDA_TimeOut" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                                <propertyDescriptor groupName="Group.TIME_OUT" propertyEditor="com.ibm.etools.mft.ibmnodes.editors.PositiveIntegerPropertyEditor" configurable="true" describedAttribute="Property.IIB_TimeOut">
+                                  <propertyName xmi:type="utility:TranslatableString" key="Property.IIB_TimeOut" bundleName="MF_WCS_InventoryReservation_2_SYNC" pluginId="APP_InventoryReservation_2.0"/>
+                                </propertyDescriptor>
+                              </propertyDescriptor>
+                            </propertyDescriptor>
+                          </propertyDescriptor>
+                        </propertyDescriptor>
+                      </propertyDescriptor>
+                    </propertyDescriptor>
+                  </propertyDescriptor>
+                </propertyDescriptor>
+              </propertyDescriptor>
+            </propertyDescriptor>
+          </propertyDescriptor>
+        </propertyDescriptor>
+      </propertyDescriptor>
+    </propertyOrganizer>
+    <attributeLinks promotedAttribute="Property.IIB_URL" overriddenNodes="FCMComposite_1_1">
+      <overriddenAttribute href="ComIbmWSInput.msgnode#Property.URLSpecifier"/>
+    </attributeLinks>
+    <attributeLinks promotedAttribute="Property.ACH_URL" overriddenNodes="FCMComposite_1_2">
+      <overriddenAttribute href="ComIbmWSRequest.msgnode#Property.URLSpecifier"/>
+    </attributeLinks>
+    <attributeLinks promotedAttribute="Property.LAMBDA_URL" overriddenNodes="FCMComposite_1_6">
+      <overriddenAttribute href="ComIbmWSRequest.msgnode#Property.URLSpecifier"/>
+    </attributeLinks>
+    <attributeLinks promotedAttribute="Property.OMS_URL" overriddenNodes="FCMComposite_1_4">
+      <overriddenAttribute href="ComIbmSOAPRequest.msgnode#Property.webServiceURL"/>
+    </attributeLinks>
+    <attributeLinks promotedAttribute="Property.OMS_TimeOut" overriddenNodes="FCMComposite_1_4">
+      <overriddenAttribute href="ComIbmSOAPRequest.msgnode#Property.requestTimeout"/>
+    </attributeLinks>
+    <attributeLinks promotedAttribute="Property.ACH_TimeOut" overriddenNodes="FCMComposite_1_2">
+      <overriddenAttribute href="ComIbmWSRequest.msgnode#Property.timeoutForServer"/>
+    </attributeLinks>
+    <attributeLinks promotedAttribute="Property.LAMBDA_TimeOut" overriddenNodes="FCMComposite_1_6">
+      <overriddenAttribute href="ComIbmWSRequest.msgnode#Property.timeoutForServer"/>
+    </attributeLinks>
+    <attributeLinks promotedAttribute="Property.IIB_TimeOut" overriddenNodes="FCMComposite_1_1">
+      <overriddenAttribute href="ComIbmWSInput.msgnode#Property.timeoutForClient"/>
+    </attributeLinks>
+    <stickyBoard/>
+  </eClassifiers>
+</ecore:EPackage>

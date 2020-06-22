@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:ComIbmCompute.msgnode="ComIbmCompute.msgnode" xmlns:ComIbmMQOutput.msgnode="ComIbmMQOutput.msgnode" xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:eflow="http://www.ibm.com/wbi/2005/eflow" xmlns:mbmonitor="http://www.ibm.com/wbi/2008/eflow_mbmonitor" xmlns:utility="http://www.ibm.com/wbi/2005/eflow_utility" nsURI="SF_MOM_ExceptionHandling.subflow" nsPrefix="SF_MOM_ExceptionHandling.subflow">
+  <eClassifiers xmi:type="eflow:FCMComposite" name="FCMComposite_1">
+    <eAnnotations>
+      <details key="xmi:uuid" value="d3b2d5a7-f900-0000-0080-bf59547d87b5"/>
+    </eAnnotations>
+    <eSuperTypes href="http://www.ibm.com/wbi/2005/eflow#//FCMBlock"/>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.ErrorQueue" name="ErrorQueue" defaultValueLiteral="EAI.MOM.ERROR">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.ebStoreMessageCopy" name="ebStoreMessageCopy" lowerBound="1" defaultValueLiteral="true">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EBoolean"/>
+    </eStructuralFeatures>
+    <translation xmi:type="utility:TranslatableString" key="SF_MOM_ExceptionHandling" bundleName="SF_MOM_ExceptionHandling" pluginId="APP_ConfirmCarrierManifest"/>
+    <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/APP_ConfirmCarrierManifest/icons/full/obj16/SF_MOM_ExceptionHandling.gif"/>
+    <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/APP_ConfirmCarrierManifest/icons/full/obj30/SF_MOM_ExceptionHandling.gif"/>
+    <shortDescription xmi:type="utility:ConstantString" string="Release Version - 1.0"/>
+    <longDescription xmi:type="utility:ConstantString" string="Release Version - 1.0, Author - Infosys, Date - 05-Nov-2012, Description - Initial release of exception subflow"/>
+    <version xmi:type="utility:ConstantString" string="1.0"/>
+    <composition>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_3" location="122,142" computeExpression="esql://routine/#SF_MOM_ExceptionHandling_CMP_ConstructExceptionMsg.Main" computeMode="all">
+        <translation xmi:type="utility:ConstantString" string="CMP_ConstructExceptionMsg"/>
+        <shortDescription xmi:type="utility:ConstantString" string="Construct Exception Message"/>
+        <longDescription xmi:type="utility:ConstantString" string="Using this node, the Exception message from the 'ExceptionList' tree is parsed and reformatted into an XML format. The re-formatted message has the following structure:   &#xD;&#xA;&lt;Error>   &lt;MessageSource>     &lt;QueueManager>&lt;/QueueManager>     &lt;Queue>&lt;/Queue>     &lt;MessageID>&lt;/MessageID>  &lt;/MessageSource>  &lt;ContextInfo>   &lt;KeyField>&lt;/KeyField>   &lt;MessageFlowName>&lt;/MessageFlowName>  &lt;/ContextInfo>  &lt;Detail>   &lt;ExceptionType>&lt;/ExceptionType>   &lt;ErrorDiagnostics>&lt;/ErrorDiagnostics>   &lt;ErrorCode>&lt;/ErrorCode>   &lt;SeverityLevel>&lt;/SeverityLevel>   &lt;ErrorSource>&lt;/ErrorSource>   &lt;ErrorDescription>&lt;/ErrorDescription>  &lt;/Detail> &lt;/Error>"/>
+      </nodes>
+      <nodes xmi:type="eflow:FCMSource" xmi:id="InTerminal.Input" location="39,142">
+        <translation xmi:type="utility:TranslatableString" key="InTerminal.In" bundleName="SF_MOM_ExceptionHandling" pluginId="APP_ConfirmCarrierManifest"/>
+        <shortDescription xmi:type="utility:ConstantString" string="Input Terminal"/>
+        <longDescription xmi:type="utility:ConstantString" string="Input terminal of the Exception-Subflow"/>
+      </nodes>
+      <nodes xmi:type="ComIbmMQOutput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_11" location="319,137" queueName="EAI.MOM.ERROR" transactionMode="no">
+        <translation xmi:type="utility:ConstantString" string="MQO_SendtoErrorQueue"/>
+        <shortDescription xmi:type="utility:ConstantString" string="MQOutput Node"/>
+        <longDescription xmi:type="utility:ConstantString" string="This nodes writes the formatted error message into the error queue"/>
+        <monitorEvents eventSourceDescription="In terminal" eventSourceName="MQO_SendtoErrorQueue.terminal.in" eventIdentity="MQO_SendtoErrorQueue.EXCEPTION">
+          <eventXMLDoc xmi:type="mbmonitor:MonitorEvent" eventUOW="none">
+            <applicationData dataLocation="$ExceptionList" isXPath="true" complexData="true"/>
+            <globalTransactionCorrelator/>
+            <parentTransactionCorrelator/>
+            <localTransactionCorrelator/>
+            <bitStreamData encoding="base64Binary"/>
+            <eventName literal="MQO_SendtoErrorQueue.EXCEPTION"/>
+            <eventFilter dataLocation="true()" isXPath="true"/>
+          </eventXMLDoc>
+        </monitorEvents>
+      </nodes>
+      <nodes xmi:type="eflow:FCMSink" xmi:id="OutTerminal.Output" location="508,34">
+        <translation xmi:type="utility:TranslatableString" key="OutTerminal.Failure" bundleName="SF_MOM_ExceptionHandling" pluginId="APP_ConfirmCarrierManifest"/>
+        <shortDescription xmi:type="utility:ConstantString" string="Output Terminal"/>
+        <longDescription xmi:type="utility:ConstantString" string="This output terminal sends back any exception details which happened during construction of the original error back to the main message flow"/>
+      </nodes>
+      <nodes xmi:type="eflow:FCMSink" xmi:id="OutTerminal.Output1" location="509,147">
+        <translation xmi:type="utility:TranslatableString" key="OutTerminal.Out" bundleName="SF_MOM_ExceptionHandling" pluginId="APP_ConfirmCarrierManifest"/>
+        <shortDescription xmi:type="utility:ConstantString" string="Output Terminal"/>
+        <longDescription xmi:type="utility:ConstantString" string="This terminal provides the error XML message back to the main message flow"/>
+      </nodes>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_5" targetNode="FCMComposite_1_11" sourceNode="FCMComposite_1_3" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_7" targetNode="FCMComposite_1_3" sourceNode="InTerminal.Input" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_1" targetNode="OutTerminal.Output" sourceNode="FCMComposite_1_11" sourceTerminalName="OutTerminal.failure" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_2" targetNode="OutTerminal.Output" sourceNode="FCMComposite_1_3" sourceTerminalName="OutTerminal.failure" targetTerminalName="InTerminal.in">
+        <bendPoints>137,-117,-208,-10</bendPoints>
+      </connections>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_3" targetNode="OutTerminal.Output1" sourceNode="FCMComposite_1_11" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+    </composition>
+    <propertyOrganizer>
+      <propertyDescriptor groupName="Group.Queues" propertyEditor="com.ibm.etools.mft.ibmnodes.editors.mq.MQQueueNameEditor" configurable="true" describedAttribute="Property.ErrorQueue">
+        <propertyName xmi:type="utility:TranslatableString" key="Property.ErrorQueue" bundleName="SF_MOM_ExceptionHandling" pluginId="MFP_MOM_CommonSubflows"/>
+        <propertyDescriptor groupName="Group.Basic" configurable="true" userDefined="true" describedAttribute="Property.ebStoreMessageCopy">
+          <propertyName xmi:type="utility:TranslatableString" key="Property.ebStoreMessageCopy" bundleName="SF_MOM_ExceptionHandling" pluginId="APP_ConfirmCarrierManifest"/>
+        </propertyDescriptor>
+      </propertyDescriptor>
+    </propertyOrganizer>
+    <attributeLinks promotedAttribute="Property.ErrorQueue" overriddenNodes="FCMComposite_1_11">
+      <overriddenAttribute href="ComIbmMQOutput.msgnode#Property.queueName"/>
+    </attributeLinks>
+    <stickyBoard/>
+  </eClassifiers>
+</ecore:EPackage>

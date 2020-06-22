@@ -1,0 +1,1251 @@
+
+DECLARE CACHE_ACH_USER_IDs SHARED ROW;
+--Compute module to build the request for OMS system
+CREATE COMPUTE MODULE CMP_TransformWCStoOMS
+	DECLARE OMS_programId EXTERNAL CHARACTER;
+	DECLARE OMS_userId EXTERNAL CHARACTER;
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		--Setting the key fields into the environment variable for future use
+		SET Environment.Variables.XMLKeyFields.OrderItemID = InputRoot.JSON.Data.orderItems.orderItemId;
+		SET Environment.Variables.WCSRequest = InputRoot.JSON.Data;
+		SET Environment.Variables.SalesOrderNo=InputRoot.JSON.Data.orderId;
+		--Mandarory field validation
+		IF (InputRoot.JSON.Data.orderId IS NULL) OR (InputRoot.JSON.Data.orderId = '') THEN
+			THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderId');
+		END IF;
+		IF (InputRoot.JSON.Data.shipAsComplete IS NULL) OR (InputRoot.JSON.Data.shipAsComplete = '') THEN
+			THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : shipAsComplete');
+		END IF;
+		IF (InputRoot.JSON.Data.deliveryOption IS NULL) OR (InputRoot.JSON.Data.deliveryOption = '') THEN
+			THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : deliveryOption');
+		END IF;
+		IF (InputRoot.JSON.Data.quoteId IS NULL) OR (InputRoot.JSON.Data.quoteId = '') THEN
+			THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : quoteId');
+		END IF;
+
+		IF NOT EXISTS (InputRoot.JSON.Data.shippingAddress[]) THEN
+			THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : shippingAddress');
+		ELSE
+			IF (InputRoot.JSON.Data.shippingAddress.postcode IS NULL) OR (InputRoot.JSON.Data.shippingAddress.postcode = '') THEN
+				THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : shippingAddress/postcode');
+			END IF;
+			IF (InputRoot.JSON.Data.shippingAddress.city IS NULL) OR (InputRoot.JSON.Data.shippingAddress.city = '') THEN
+				THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : shippingAddress/city');
+			END IF;
+			IF (InputRoot.JSON.Data.shippingAddress.state IS NULL) OR (InputRoot.JSON.Data.shippingAddress.state = '') THEN
+				THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : shippingAddress/state');
+			END IF;
+			IF (InputRoot.JSON.Data.shippingAddress.addressLines.Item IS NULL) OR (InputRoot.JSON.Data.shippingAddress.addressLines.Item = '') THEN
+				THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : shippingAddress/addressLines');
+			END IF;
+		END IF;
+
+		IF NOT EXISTS (InputRoot.JSON.Data.orderItems[]) THEN
+			THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems');
+		END IF;
+
+		DECLARE ejb NAMESPACE 'http://ejb.rpc.webservices.services.interop.yantra.com';
+		DECLARE blRequestMessage, blCredentialsMessage BLOB;
+		DECLARE cCredentialsMessage,cRequestMessage CHARACTER;
+		DECLARE eiCCSID INTEGER 1208;
+		DECLARE eiEncoding INTEGER 546;
+		DECLARE programId CHARACTER OMS_programId;
+		DECLARE userId CHARACTER OMS_userId;
+		DECLARE organizationCode CHARACTER 'MYER';
+		DECLARE productClass CHARACTER 'GOOD';
+
+		CREATE FIELD OutputRoot.XMLNSC;
+		CREATE FIELD OutputRoot.XMLNSC.envString;
+		DECLARE envstrRef REFERENCE TO OutputRoot.XMLNSC.envString;
+		CREATE FIELD envstrRef.YFSEnvironment;
+		SET envstrRef.YFSEnvironment.(XMLNSC.NamespaceDecl)xmlns:yan = 'http://ejb.rpc.webservices.services.interop.yantra.com';
+		SET envstrRef.YFSEnvironment.(XMLNSC.NamespaceDecl)xmlns:soapenc = 'http://schemas.xmlsoap.org/soap/encoding/';
+		SET envstrRef.YFSEnvironment.(XMLNSC.NamespaceDecl)xmlns:soapenv = 'http://schemas.xmlsoap.org/soap/envelope/';
+		SET envstrRef.YFSEnvironment.(XMLNSC.NamespaceDecl)xmlns:xsd = 'http://www.w3.org/2001/XMLSchema';
+		SET envstrRef.YFSEnvironment.(XMLNSC.NamespaceDecl)xmlns:xsi = 'http://www.w3.org/2001/XMLSchema-instance';
+		DECLARE yfsenvRef REFERENCE TO envstrRef.YFSEnvironment;
+		SET yfsenvRef.(XMLNSC.Attribute)progId = programId;
+		SET yfsenvRef.(XMLNSC.Attribute)userId = userId;
+		CREATE FIELD OutputRoot.XMLNSC.apiString;
+		DECLARE apistrRef REFERENCE TO OutputRoot.XMLNSC.apiString;
+		--Hardcoded to reserver as the cancel call is not in scope of the message flow
+		SET Environment.Variables.XMLKeyFields.ActionCode = 'RESERVE';
+		--Hard coded to Y to make the ACH call
+		SET Environment.Variables.XMLKeyFields.ACHCall = 'Y';
+		--Mapping for create/modifying order scenario
+		IF (Environment.Variables.XMLKeyFields.ActionCode = 'RESERVE') THEN
+			SET apistrRef.ReserveAndCancel.Promise.(XMLNSC.Attribute)AllocationRuleID =
+			CASE InputRoot.JSON.Data.shipAsComplete
+			WHEN 'Y' THEN 'SHIPTOGH' --Ship together
+			ELSE 'SHIPASAVL' -- Ship as available
+			END;
+
+			SET apistrRef.ReserveAndCancel.Promise.(XMLNSC.Attribute)OrganizationCode = organizationCode;
+			SET apistrRef.ReserveAndCancel.Promise.ReservationParameters.(XMLNSC.Attribute)AllowPartialReservation = 'N';
+			SET apistrRef.ReserveAndCancel.Promise.ReservationParameters.(XMLNSC.Attribute)ReservationID = InputRoot.JSON.Data.orderId;
+
+			DECLARE iLineCount INTEGER 1;
+			CREATE LASTCHILD OF apistrRef.ReserveAndCancel.Promise NAME 'PromiseLines';
+			--Mapping each order item to the promiseLine in OMS
+			FOR iOrderItemRef AS InputRoot.JSON.Data.orderItems.Item[] DO
+				--Mandatory field validation for the fields at OrderItem level
+				IF (iOrderItemRef.orderItemId IS NULL) OR (iOrderItemRef.orderItemId = '') THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/orderItemId');
+				END IF;
+				IF (iOrderItemRef.item.itemNumber IS NULL) OR (iOrderItemRef.item.itemNumber = '') THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/item/itemNumber');
+				END IF;
+				IF (iOrderItemRef.item.itemType IS NULL) OR (iOrderItemRef.item.itemType = '') THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/item/itemType');
+				ELSEIF (iOrderItemRef.item.itemType NOT IN ('P', 'PI', 'PARCEL', 'HB', 'VHB')) THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Invalid value submitted for the field : orderItems/item/itemType');
+				END IF;
+				IF (iOrderItemRef.item.requestedQuantity IS NULL) THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/item/requestedQuantity');
+				END IF;
+				IF (iOrderItemRef.item.requestedQuantity=0) THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('requestedQuantity should not be 0');
+				END IF;		
+			
+
+				IF (iOrderItemRef.item.totalSellingPrice IS NULL) THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/item/totalSellingPrice');
+				END IF;
+				
+					--#MP
+				IF (iOrderItemRef.item.barcode IS NULL) OR (iOrderItemRef.item.barcode = '') THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/item/barcode');
+				END IF;
+				IF (iOrderItemRef.item.sellerId IS NULL) OR (iOrderItemRef.item.sellerId = '') THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/item/sellerId');
+				END IF;
+				IF (iOrderItemRef.item.sellerName IS NULL) OR (iOrderItemRef.item.sellerName = '') THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/item/sellerName');
+				END IF;				
+				--#MP
+				
+				--Mandatory field validation incase of modify cart scenario
+				IF EXISTS(iOrderItemRef.lastReservation[]) THEN
+					IF (iOrderItemRef.lastReservation.Item[1].reservationNode IS NULL) OR (iOrderItemRef.lastReservation.Item[1].reservationNode = '') THEN
+						THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/lastReservation/reservationNode');
+					END IF;
+					IF (iOrderItemRef.lastReservation.Item[1].reservedQuantity IS NULL) THEN
+						THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/lastReservation/reservedQuantity');
+					END IF;
+					IF (iOrderItemRef.lastReservation.Item[1].eta IS NULL) OR (iOrderItemRef.lastReservation.Item[1].eta = '') THEN
+						THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/lastReservation/eta');
+					END IF;
+				END IF;
+
+				CREATE LASTCHILD OF apistrRef.ReserveAndCancel.Promise.PromiseLines NAME 'PromiseLine';
+
+				DECLARE oPromiseLineRef REFERENCE TO apistrRef.ReserveAndCancel.Promise.PromiseLines.PromiseLine[iLineCount];
+				--Setting the attributes of OMS request based on the source delivery method
+				IF (InputRoot.JSON.Data.deliveryOption = 'sameday') THEN
+					SET oPromiseLineRef.(XMLNSC.Attribute)CarrierServiceCode = 'EXPRESS';
+					SET oPromiseLineRef.(XMLNSC.Attribute)FulfillmentType = 'EXPRESS_SHIPPING';
+					SET oPromiseLineRef.(XMLNSC.Attribute)LevelOfService = 'SAME_DAY_SHIP';
+				ELSEIF (InputRoot.JSON.Data.deliveryOption = 'nextday') THEN
+					SET oPromiseLineRef.(XMLNSC.Attribute)CarrierServiceCode = 'EXPRESS';
+					SET oPromiseLineRef.(XMLNSC.Attribute)FulfillmentType = 'EXPRESS_SHIPPING';
+					SET oPromiseLineRef.(XMLNSC.Attribute)LevelOfService = 'NEXT_DAY_SHIP';
+				ELSEIF (InputRoot.JSON.Data.deliveryOption = 'nominatedwindow') THEN
+					SET oPromiseLineRef.(XMLNSC.Attribute)CarrierServiceCode = 'STANDARD';
+					SET oPromiseLineRef.(XMLNSC.Attribute)FulfillmentType = 'SHIP_TO_CUSTOMER';
+					SET oPromiseLineRef.(XMLNSC.Attribute)LevelOfService = 'NOMINATED_DAY_SHIP';
+				ELSEIF (InputRoot.JSON.Data.deliveryOption = 'standard') THEN
+					SET oPromiseLineRef.(XMLNSC.Attribute)CarrierServiceCode = 'STANDARD';
+					SET oPromiseLineRef.(XMLNSC.Attribute)FulfillmentType = 'SHIP_TO_CUSTOMER';
+					SET oPromiseLineRef.(XMLNSC.Attribute)LevelOfService = 'STANDARD';
+				ELSE
+					--If Invalid delivery method is sent in the request throw the exception and terminate the flow
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('Invalid value submitted for the field : deliveryOption');
+				END IF;
+
+				SET oPromiseLineRef.(XMLNSC.Attribute)ItemID = iOrderItemRef.item.itemNumber;
+				SET oPromiseLineRef.(XMLNSC.Attribute)LineId = iOrderItemRef.orderItemId;
+				SET oPromiseLineRef.(XMLNSC.Attribute)ProductClass = productClass;
+				SET oPromiseLineRef.(XMLNSC.Attribute)UnitOfMeasure = 'EACH';
+				SET oPromiseLineRef.(XMLNSC.Attribute)RequiredQty = iOrderItemRef.item.requestedQuantity;
+				SET oPromiseLineRef.(XMLNSC.Attribute)ShipNode = iOrderItemRef.item.sourceStores.storeId;
+				SET oPromiseLineRef.ReservationParameters.(XMLNSC.Attribute)AllowPartialReservation = 'N';
+				SET oPromiseLineRef.ShipToAddress.(XMLNSC.Attribute)AddressLine1 = InputRoot.JSON.Data.shippingAddress.addressLines.Item[1];
+				SET oPromiseLineRef.ShipToAddress.(XMLNSC.Attribute)AddressLine2 = InputRoot.JSON.Data.shippingAddress.addressLines.Item[2];
+				SET oPromiseLineRef.ShipToAddress.(XMLNSC.Attribute)City = InputRoot.JSON.Data.shippingAddress.city;
+				SET oPromiseLineRef.ShipToAddress.(XMLNSC.Attribute)Country = COALESCE (InputRoot.JSON.Data.shippingAddress.country,'AU');
+				SET oPromiseLineRef.ShipToAddress.(XMLNSC.Attribute)State = InputRoot.JSON.Data.shippingAddress.state;
+				SET Environment.Variables.sendToLambda.state = InputRoot.JSON.Data.shippingAddress.state;
+				SET oPromiseLineRef.ShipToAddress.(XMLNSC.Attribute)ZipCode =
+				COALESCE (iOrderItemRef.item.sourceStores.Item[1].address.postcode,InputRoot.JSON.Data.shippingAddress.postcode);
+
+				DECLARE iItemCount INTEGER 1;
+				DECLARE iItemCard INTEGER COALESCE(iOrderItemRef.lastReservation.Item[1].reservedQuantity,0);
+				DECLARE reqQty DECIMAL;
+				DECLARE iCancelCount INTEGER 1;
+				--Incase of modify cart, cancel the quantities which were reserverd before and reserver new quantities selected
+				--This logic is coded as per existing this require rebuild
+				WHILE (iItemCount <= iItemCard) DO
+					SET reqQty = iOrderItemRef.item.requestedQuantity;
+					IF (reqQty > 0) THEN
+						SET apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation[iCancelCount].(XMLNSC.Attribute)ItemID = iOrderItemRef.item.itemNumber;
+						SET apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation[iCancelCount].(XMLNSC.Attribute)OrganizationCode = organizationCode;
+						SET apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation[iCancelCount].(XMLNSC.Attribute)ProductClass = productClass;
+						SET apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation[iCancelCount].(XMLNSC.Attribute)QtyToBeCancelled = reqQty;
+						SET apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation[iCancelCount].(XMLNSC.Attribute)ReservationID = InputRoot.JSON.Data.orderId;
+						SET apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation[iCancelCount].(XMLNSC.Attribute)ShipDate =CAST(SUBSTRING(iOrderItemRef.lastReservation.Item[1].eta FROM 1 FOR 10) AS DATE FORMAT 'yyyy-MM-dd');
+						IF (iOrderItemRef.lastReservation.Item[1].procureNode IS NULL) OR (iOrderItemRef.lastReservation.Item[1].procureNode = '') THEN
+							SET apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation[iCancelCount].(XMLNSC.Attribute)ShipNode = iOrderItemRef.lastReservation.Item[1].reservationNode;
+						ELSE
+							SET apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation[iCancelCount].(XMLNSC.Attribute)ShipNode = iOrderItemRef.lastReservation.Item[1].procureNode;
+						END IF;
+						SET apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation[iCancelCount].(XMLNSC.Attribute)UnitOfMeasure = 'EACH';
+						SET iCancelCount = iCancelCount + 1;
+					END IF;
+					SET iItemCount = iItemCount + 1;
+				END WHILE;
+				SET iLineCount = iLineCount + 1;
+			END FOR;
+		ELSE
+			-- For Inventory Cancellaltion Scenario, we can cancel only one Item at one time. Hence only one occurance of CancelReservation.
+			IF NOT EXISTS(InputRoot.JSON.Data.orderItems.Item[1].lastReservation[]) THEN
+				THROW USER EXCEPTION MESSAGE 400 VALUES ('Mandatory field is missing : orderItems/lastReservation');
+			ELSE
+				IF (InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].reservationNode IS NULL) OR (InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].reservationNode = '') THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('orderItems/lastReservation/reservationNode');
+				END IF;
+				IF (InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].reservedQuantity IS NULL) OR (InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].reservedQuantity = '') THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('orderItems/lastReservation/reservedQuantity');
+				END IF;
+				IF (InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].eta IS NULL) OR (InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].eta = '') THEN
+					THROW USER EXCEPTION MESSAGE 400 VALUES ('orderItems/lastReservation/eta');
+				END IF;
+			END IF;
+
+			DECLARE ocancelReservationref REFERENCE TO apistrRef.ReserveAndCancel.OriginalReservationDetails.CancelReservation;
+			SET ocancelReservationref.(XMLNSC.Attribute)ItemID = InputRoot.JSON.Data.orderItems.Item[1].item.itemNumber;
+			SET ocancelReservationref.(XMLNSC.Attribute)OrganizationCode = organizationCode;
+			SET ocancelReservationref.(XMLNSC.Attribute)ProductClass = productClass;
+			SET ocancelReservationref.(XMLNSC.Attribute)QtyToBeCancelled = InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].reservedQuantity;
+			SET ocancelReservationref.(XMLNSC.Attribute)ReservationID = InputRoot.JSON.Data.orderId;
+			SET ocancelReservationref.(XMLNSC.Attribute)ShipDate = CAST(SUBSTRING(InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].eta FROM 1 FOR 10) AS DATE FORMAT 'yyyy-MM-dd');
+			IF (InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].procureNode IS NULL) OR (InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].procureNode = '') THEN
+				SET ocancelReservationref.(XMLNSC.Attribute)ShipNode = InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].reservationNode;
+			ELSE
+				SET ocancelReservationref.(XMLNSC.Attribute)ShipNode = InputRoot.JSON.Data.orderItems.Item[1].lastReservation.Item[1].procureNode;
+			END IF;
+			SET ocancelReservationref.(XMLNSC.Attribute)UnitOfMeasure = 'EACH';
+		END IF;
+		-- PROPAGATE TO TERMINAL 'out1';
+		-- RETURN FALSE;
+		--Sending SOAP request to OMS with credentials and payload as string data type
+		SET blCredentialsMessage = ASBITSTREAM(OutputRoot.XMLNSC.envString CCSID eiCCSID Encoding eiEncoding );
+		SET cCredentialsMessage = CAST(blCredentialsMessage AS CHAR CCSID eiCCSID Encoding eiEncoding );
+		SET OutputRoot.SOAP.Body.ejb:myer_InventoryReservation.envString= cCredentialsMessage;
+		SET blRequestMessage = ASBITSTREAM(OutputRoot.XMLNSC.apiString CCSID eiCCSID Encoding eiEncoding );
+		SET cRequestMessage = CAST(blRequestMessage AS CHAR CCSID eiCCSID Encoding eiEncoding);
+		SET OutputRoot.SOAP.Body.ejb:myer_InventoryReservation.apiString= cRequestMessage;
+		SET OutputRoot.XMLNSC = NULL;
+		RETURN TRUE;
+	END;
+END MODULE;
+
+--Recieve the OMS response and map accordinlgy beased on response.
+CREATE COMPUTE MODULE CMP_ProcessOMSResponse
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		DECLARE cResponseMessage CHARACTER;
+		DECLARE blResponseMessage BLOB;
+		DECLARE yan NAMESPACE 'http://ejb.rpc.webservices.services.interop.yantra.com';
+		DECLARE soapenv NAMESPACE 'http://schemas.xmlsoap.org/soap/envelope/';
+		DECLARE eiCCSID INTEGER 437;
+		DECLARE eiEncoding INTEGER 546;
+		-- Mapping the success OMS response
+		IF EXISTS(InputRoot.SOAP.Body.yan:myer_InventoryReservationResponse[]) THEN
+
+			SET cResponseMessage = InputRoot.SOAP.Body.yan:myer_InventoryReservationResponse.myer_InventoryReservationReturn;
+			SET blResponseMessage = CAST(cResponseMessage AS BLOB CCSID eiCCSID ENCODING eiEncoding);
+			-- Reservation scenario
+			IF (Environment.Variables.XMLKeyFields.ActionCode = 'RESERVE') THEN
+				CREATE LASTCHILD OF OutputRoot DOMAIN('XMLNSC') PARSE (blResponseMessage,eiEncoding,eiCCSID);
+				IF EXISTS(SELECT T.* FROM OutputRoot.XMLNSC.PromiseHeader.PromiseLines.PromiseLine[] AS T
+					WHERE T.Reservations.TotalReservedQty <> T.Reservations.QtyToBeReserved) THEN
+					SET Environment.Variables.XMLKeyFields.ReservationStatus = 'Unallocated';
+				ELSE
+					SET Environment.Variables.XMLKeyFields.ReservationStatus = 'Allocated';
+				END IF;
+			ELSE
+				--Reserve and Cancel scenario
+				CREATE LASTCHILD OF OutputRoot DOMAIN('XMLNSC') PARSE (blResponseMessage,eiEncoding,eiCCSID);
+			END IF;
+			SET Environment.Variables.OMSResponse = OutputRoot.XMLNSC;
+			SET Environment.Variables.OMSService.Status = 'SUCCESS';
+			-- OMS Webservice Exception
+		ELSEIF EXISTS(InputRoot.SOAP.Body.yan:YIFWebServiceException[]) THEN
+			SET Environment.Variables.OMSService.Status = 'ERROR';
+			SET Environment.Variables.OMSService.ErrorCode = InputRoot.SOAP.Body.yan:YIFWebServiceException.errorCode;
+			SET Environment.Variables.OMSService.ErrorMessage = InputRoot.SOAP.Body.yan:YIFWebServiceException.message;
+			SET Environment.Variables.OMSService.ErrorDescription = InputRoot.SOAP.Body.yan:YIFWebServiceException.errorDescription;
+			-- OMS fault scenario
+		ELSEIF EXISTS(InputRoot.SOAP.Body.soapenv:Fault[]) THEN
+			SET blResponseMessage = CAST(cResponseMessage AS BLOB CCSID eiCCSID ENCODING eiEncoding);
+			CREATE LASTCHILD OF Environment.Variables.OMSFault DOMAIN('XMLNSC')
+			PARSE (blResponseMessage,eiEncoding,eiCCSID);
+			SET Environment.Variables.OMSService.Status = 'ERROR';
+			SET Environment.Variables.OMSService.ErrorCode = Environment.Variables.OMSFault.XMLNSC.Errors.Error.ErrorCode;
+			SET Environment.Variables.OMSService.ErrorDescription = Environment.Variables.OMSFault.XMLNSC.Errors.Error.ErrorDescription;
+			SET Environment.Variables.OMSService.ErrorMessage = 'OMS WebServiceFault';
+			SET Environment.Variables.OMSService.ReasonCode = 'Error';
+		ELSE
+			SET Environment.Variables.OMSService.Status = 'EXCEPTION';
+			SET Environment.Variables.OMSService.ErrorCode = 'OMS_EXCEPTION';
+			SET Environment.Variables.OMSService.ErrorDescription = 'OMS web service is down or did not respond within defined timeout interval';
+			SET Environment.Variables.OMSService.ReasonCode = 'Exception';
+		END IF;
+
+		IF (Environment.Variables.XMLKeyFields.ActionCode = 'CANCEL') OR
+			(Environment.Variables.XMLKeyFields.ReservationStatus = 'Unallocated') OR
+			(Environment.Variables.OMSService.Status = 'ERROR') THEN
+			-- no call to ACH in this scenarios
+			PROPAGATE TO TERMINAL 'out';
+		ELSE
+				PROPAGATE TO TERMINAL 'out2';
+		END IF;
+		RETURN FALSE;
+	END;
+END MODULE;
+
+--Building JSON request for ACH
+CREATE COMPUTE MODULE CMP_BuildACHRequest
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- Storing new DSV in cache
+		DECLARE shipLagDays INTEGER 1;
+		--Call ACH incase of OMS gives success response
+		IF(Environment.Variables.OMSService.Status = 'SUCCESS')THEN
+		DECLARE amount FLOAT 0.0;
+		DECLARE amountStr CHARACTER;
+		DECLARE i INTEGER 1;
+		DECLARE j INTEGER 1;
+		DECLARE m INTEGER 1;
+		DECLARE h INTEGER 1;
+		DECLARE reservationCount INTEGER 1;
+		DECLARE lineCount INTEGER 1;
+		DECLARE eInputRef REFERENCE TO Environment.Variables.WCSRequest;
+		DECLARE lineCard INTEGER CARDINALITY (eInputRef.orderItems.Item[]);
+		DECLARE omsLineCard INTEGER COALESCE(CARDINALITY(InputRoot.XMLNSC.PromiseHeader.PromiseLines.PromiseLine[]),0);
+		--Mapping the key values into environment variable
+		WHILE (lineCount<=lineCard) DO
+			DECLARE omsLineCount INTEGER 1;
+			promiseLineloop: WHILE (omsLineCount<=omsLineCard) DO
+				IF(InputRoot.XMLNSC.PromiseHeader.PromiseLines.PromiseLine[omsLineCount].LineId = eInputRef.orderItems.Item[lineCount].orderItemId) THEN
+				DECLARE reservationItemCount INTEGER 1;
+				DECLARE reservationItemCard INTEGER CARDINALITY(InputRoot.XMLNSC.PromiseHeader.PromiseLines.PromiseLine[omsLineCount].Reservations.Reservation[]);
+				WHILE (reservationItemCount<=reservationItemCard)DO
+					SET Environment.Variables.request.Item[h]=
+					THE (SELECT O.Reservation[reservationItemCount].ShipNode AS ShipNode,
+					O.QtyToBeReserved AS QtyToBeReserved,
+					O.AvailableQty AS AvailableQty,
+					O.TotalReservedQty AS TotalReservedQty,
+					O.Reservation[reservationItemCount].ProcureToNode AS ProcureToNode,
+					O.Reservation[reservationItemCount].ShipDate AS ShipDate,
+					O.Reservation[reservationItemCount].ReservedQty AS NodeReservedQty,
+					I.totalSellingPrice AS totalSellingPrice,
+					I.itemType AS ItemType,
+					I.sellerId AS SellerId,
+					I.sellerName AS SellerName,
+					I.barcode AS BarCode,
+					I.itemNumber AS itemNumber,
+					S.orderItemId AS orderItemId
+					FROM eInputRef.orderItems.Item[lineCount].item AS I,
+					eInputRef.orderItems.Item[lineCount] AS S,
+					InputRoot.XMLNSC.PromiseHeader.PromiseLines.PromiseLine[omsLineCount].Reservations[] AS O);
+					SET h=h+1;
+					SET reservationItemCount=reservationItemCount+1;
+				END WHILE;
+				LEAVE promiseLineloop;
+			ELSE
+				SET omsLineCount=omsLineCount+1;
+			END IF;
+		END WHILE;
+		SET lineCount=lineCount+1;
+	END WHILE;
+
+	--Summing all the line item price to calculate the cart price
+	DECLARE jItemCount INTEGER CARDINALITY(eInputRef.orderItems.Item[]);
+	WHILE (j<= jItemCount) DO
+		SET amount = amount+ CAST (eInputRef.orderItems.Item[j].item.totalSellingPrice AS FLOAT);
+		SET j=j+1;
+	END WHILE;	
+	--Multipying the amount value with 100 as per ACH requirement, as ACH does not support decimal value
+	SET amount=amount*1000;
+	SET amountStr=CAST(CAST(amount AS INTEGER) AS CHARACTER);
+	--Incase of order is given full discount sending aount value for ACH as 00 instead of 0 as per ACH requirement
+IF(amountStr='0')THEN
+SET amountStr=amountStr||'0';
+END IF;
+DECLARE iItemCount INTEGER CARDINALITY(Environment.Variables.request.Item[]);
+	WHILE (i<= iItemCount) DO
+		DECLARE sourceShipNode CHARACTER;
+		DECLARE matchedShipNode CHARACTER;
+		DECLARE startShipNodeCount INTEGER 1;
+		DECLARE shipNodeCount INTEGER CARDINALITY(Environment.XMLNSC.SourceShipNode[]);
+		SET sourceShipNode= Environment.Variables.request.Item[i].ShipNode;
+		-- logic to find the repeated shipnode in the request. Dont call ACH for same shipnode again instead reuse the same response
+		WHILE (startShipNodeCount<=shipNodeCount) Do
+			IF (Environment.XMLNSC.SourceShipNode[startShipNodeCount].UniqueShipNode=sourceShipNode) THEN
+				SET matchedShipNode=sourceShipNode;
+			END IF;
+			SET startShipNodeCount=startShipNodeCount+1;
+		END WHILE;
+		-- Skip the ACH call repeated shipnode in the request
+		IF (matchedShipNode IS NULL )THEN
+			SET Environment.XMLNSC.SourceShipNode[m].UniqueShipNode=sourceShipNode;
+			CALL FormAchRequest(i,amountStr,sourceShipNode, Environment.Variables.request.Item[i].ShipDate);
+			SET Environment.Variables.i=m;
+			SET m=m+1;
+			PROPAGATE TO TERMINAL 'out';
+		END IF;
+		SET i=i+1;
+	END WHILE;
+	--Propogate to the compute node to build the request to Lambda service if ACH gives success response
+	IF Environment.Variables.ACHResponse.Status = 'SUCCESS' THEN
+		PROPAGATE TO TERMINAL 'out1';
+	END IF;
+	RETURN FALSE;
+	--Form the request to call ACH with default shipnode 219 incase of OMS is down
+ELSE
+	DECLARE i INTEGER 1;
+	DECLARE j INTEGER 1;
+	DECLARE eInputRef REFERENCE TO Environment.Variables.WCSRequest;
+	DECLARE iLineCard INTEGER COALESCE(CARDINALITY(eInputRef.orderItems.Item[]),0);
+	DECLARE amount FLOAT 0.0;
+	DECLARE amountStr CHARACTER;
+	--Summing all the line item price to calculate the cart price
+	WHILE (j<= iLineCard) DO
+		SET amount = amount+ CAST (eInputRef.orderItems.Item[j].item.totalSellingPrice AS FLOAT);
+		SET j=j+1;
+	END WHILE;
+	--Multipying the amount value with 100 as per ACH requirement, as ACH does not support decimal value
+	SET amount=amount*1000;
+	SET amountStr=CAST(CAST(amount AS INTEGER) AS CHARACTER);
+	--Incase of order is given full discount sending aount value for ACH as 00 instead of 0 as per ACH requirement
+IF(amountStr='0')THEN
+SET amountStr=amountStr||'0';
+END IF;
+
+	DECLARE sellerIdCount INTEGER 1;
+	
+	SET Environment.Variables.MyerShipNode = 'N';
+	SET Environment.Variables.MPShipNode = 'N';
+	DECLARE iCountNode INTEGER 0;
+	
+	WHILE(sellerIdCount <= iLineCard) DO
+	IF (eInputRef.orderItems.Item[sellerIdCount].item.sellerId = '-1' AND Environment.Variables.MyerShipNode = 'N') THEN 
+		SET Environment.Variables.MyerShipNode = 'Y';
+	ELSE
+		IF(Environment.Variables.MPShipNode = 'N') THEN
+			SET Environment.Variables.MPShipNode = 'Y';
+		END IF;
+	END IF;
+	
+	SET sellerIdCount = sellerIdCount+1;
+	END WHILE;
+	
+		IF (Environment.Variables.MyerShipNode = 'Y' ) THEN
+			CALL FormAchRequest(1,amountStr,'219',CAST((CURRENT_DATE + CAST(shipLagDays AS INTERVAL DAY))AS CHARACTER));
+			SET iCountNode = iCountNode+1;
+			SET Environment.Variables.i=iCountNode;
+			PROPAGATE TO TERMINAL 'out';
+		END IF;
+		IF (Environment.Variables.MPShipNode = 'Y') THEN
+			CALL FormAchRequest(1,amountStr,'9000397',CAST((CURRENT_DATE + CAST(shipLagDays AS INTERVAL DAY))AS CHARACTER));
+			SET iCountNode = iCountNode+1;
+			SET Environment.Variables.i=iCountNode;
+			PROPAGATE TO TERMINAL 'out';
+		END IF;
+	
+	--Call ACH only once as the default shipnode for all the items is 219
+	
+	
+	--Propogate to the compute node to build the request to Lambda service if ACH gives success response
+	IF Environment.Variables.ACHResponse.Status = 'SUCCESS' THEN
+		PROPAGATE TO TERMINAL 'out1';
+	END IF;
+	RETURN FALSE;
+END IF;
+END;
+
+--Procedure to build the inout JSON tree for ACH
+CREATE PROCEDURE FormAchRequest(IN i INTEGER, IN amountStr CHARACTER, In sourceShipNode CHARACTER,In shipDate CHARACTER ) BEGIN
+	CREATE FIELD OutputRoot.JSON.Data;
+	DECLARE oRef REFERENCE TO OutputRoot.JSON.Data;
+	CREATE FIELD oRef.Header;
+	DECLARE oheader REFERENCE TO oRef.Header;
+	DECLARE eInputRef REFERENCE TO Environment.Variables.WCSRequest;
+	CREATE FIELD oRef.Transaction;
+	DECLARE otransaction REFERENCE TO oRef.Transaction;
+	CREATE FIELD oRef.Shipping;
+	DECLARE oShipping REFERENCE TO oRef.Shipping;
+--	--Fetching the User Id corresponding to each shipnode from IIB data base, ACH_USERID table
+	IF NOT EXISTS (CACHE_ACH_USER_IDs.WMB_MSGS[]) THEN
+		SET Environment.Variables.WMB_MSGS.Item[] =(SELECT
+		I.SHIP_NODE,
+		I.USER_ID
+		FROM Database.BRKSCHEMA.WMB_ACH_USERID AS I );
+		SET CACHE_ACH_USER_IDs.WMB_MSGS[]= Environment.Variables.WMB_MSGS[];
+	ELSE
+		SET Environment.Variables.WMB_MSGS[]=CACHE_ACH_USER_IDs.WMB_MSGS[];
+	END IF;
+	SET Environment.Variables.UserID=THE(SELECT E.USER_ID FROM Environment.Variables.WMB_MSGS.Item[] AS E
+	WHERE E.SHIP_NODE='MYER'||sourceShipNode);
+	IF NOT EXISTS (Environment.Variables.UserID.USER_ID[]) THEN
+		--ShipNode Validation
+		THROW USER EXCEPTION MESSAGE 400 VALUES ('ShipNode in the request is not valid as per ACH configuration');
+	ELSE
+		SET oheader.UserID=CAST(BASE64DECODE(Environment.Variables.UserID.USER_ID)AS CHARACTER CCSID 1208);
+	END IF;
+	--Setting the value for MerchantID, concatenation of MYER||shipNode
+	SET oheader.MerchantID='MYER'||sourceShipNode;
+	--Setting the default values for TransactionType and Version
+	SET oheader.TransactionType='ShippingService';
+	SET oheader.Version='2';
+	--MerchantTxnID is the combination of order number and current time stamp
+	SET otransaction.MerchantTxnID=Environment.Variables.SalesOrderNo || SUBSTRING(CAST(CURRENT_TIMESTAMP AS CHARACTER FORMAT 'yyyyMMdd-HHmmss')AFTER '-');
+	--Setting the default value for ShippingAction
+	SET otransaction.ShippingAction='GetItemPrices';
+	SET Environment.Variables.IsHeavyBulky='N';
+	SET Environment.Variables.IsVeryHeavyBulky='N';
+	SET Environment.Variables.ShippingCarrier = 'N';
+	--Incase of OMS Exception iterate through WCS request and find, if the item list has HB or VHB items
+	--and set the flag accordingly
+	IF(Environment.Variables.OMSService.Status = 'EXCEPTION')THEN
+	DECLARE h INTEGER 1;
+	DECLARE sa INTEGER 1;
+	DECLARE inputItemCount INTEGER CARDINALITY(Environment.Variables.WCSRequest.orderItems.Item[]);
+	checkItemType :WHILE (h<=inputItemCount)DO
+	IF(sourceShipNode = '219' AND Environment.Variables.WCSRequest.orderItems.Item[h].item.sellerId = '-1'  )THEN
+		IF(UPPER(Environment.Variables.WCSRequest.orderItems.Item[h].item.itemType) IN ('HB'))THEN
+			SET Environment.Variables.IsHeavyBulky='Y';
+		END IF;
+		IF (UPPER(Environment.Variables.WCSRequest.orderItems.Item[h].item.itemType) IN ('VHB')) THEN
+			SET Environment.Variables.IsVeryHeavyBulky='Y';
+			LEAVE checkItemType;
+		END IF;
+	ELSEIF(sourceShipNode = '9000397' AND Environment.Variables.WCSRequest.orderItems.Item[h].item.sellerId <> '-1' ) THEN 
+		SET Environment.Variables.ShippingCarrier = 'Y';
+		SET Environment.Variables.SellerArray.Item[sa].ItemCode = Environment.Variables.WCSRequest.orderItems.Item[h].item.barcode;
+				SET Environment.Variables.SellerArray.Item[sa].Quantity= Environment.Variables.WCSRequest.orderItems.Item[h].item.requestedQuantity;
+				SET Environment.Variables.SellerArray.Item[sa].SellerID = Environment.Variables.request.Item[h].item.sellerId;
+				SET Environment.Variables.SellerArray.Item[sa].ItemType= Environment.Variables.WCSRequest.orderItems.Item[h].item.itemType;
+				SET Environment.Variables.SellerArray.Item[sa].SellerName= Environment.Variables.WCSRequest.orderItems.Item[h].item.sellerName;
+				SET Environment.Variables.SellerArray.Item[sa].Amount = CAST(CAST(Environment.Variables.WCSRequest.orderItems.Item[h].item.totalSellingPrice AS FLOAT)*1000 AS INTEGER);
+				IF(Environment.Variables.request.Item[h].ItemType IN ( 'HB','VHB')) THEN
+					SET Environment.Variables.SellerArray.Item[sa].ItemLength = '50';
+					SET Environment.Variables.SellerArray.Item[sa].ItemWidth = '50';
+					SET Environment.Variables.SellerArray.Item[sa].ItemHeight = '100';
+					SET Environment.Variables.SellerArray.Item[sa].ItemWeight = '60';
+				ELSE
+				  	SET Environment.Variables.SellerArray.Item[sa].ItemLength = '20';
+				  	SET Environment.Variables.SellerArray.Item[sa].ItemWidth = '20';
+				  	SET Environment.Variables.SellerArray.Item[sa].ItemHeight = '30';
+				  	SET Environment.Variables.SellerArray.Item[sa].ItemWeight = '3';
+				END IF;
+								
+				SET sa = sa+1;
+	END IF;
+		SET h=h+1;
+		
+	END WHILE checkItemType;
+ELSE
+	--Incase of OMS Success respnse, iterate through environment variable request and find,
+	-- if the item list has HB or VHB items and set the flag accordingly
+	DECLARE h INTEGER 1;
+	DECLARE sa INTEGER 1;
+	DECLARE lineCount INTEGER CARDINALITY(Environment.Variables.request.Item[]);
+	-- Logic to send the bulky item size incase parcel and Bulky items are from the same shipnode
+	checkItem: WHILE (h<=lineCount)DO
+		IF (sourceShipNode=Environment.Variables.request.Item[h].ShipNode) THEN
+			-- Check MYER seller id 
+			IF(Environment.Variables.request.Item[h].SellerId = '-1' )THEN
+				IF (UPPER(Environment.Variables.request.Item[h].ItemType) IN ('HB')) THEN
+					SET Environment.Variables.IsHeavyBulky='Y';
+				END IF;
+				IF (UPPER(Environment.Variables.request.Item[h].ItemType) IN ('VHB')) THEN
+					SET Environment.Variables.IsVeryHeavyBulky='Y';
+					LEAVE checkItem;
+				END IF;
+			ELSE 
+				SET Environment.Variables.ShippingCarrier = 'Y';
+				SET Environment.Variables.SellerArray.Item[sa].ItemCode = Environment.Variables.request.Item[h].BarCode;
+				SET Environment.Variables.SellerArray.Item[sa].Quantity= Environment.Variables.request.Item[h].QtyToBeReserved;
+				SET Environment.Variables.SellerArray.Item[sa].SellerID = Environment.Variables.request.Item[h].SellerId;
+				SET Environment.Variables.SellerArray.Item[sa].ItemType= Environment.Variables.request.Item[h].ItemType;
+				SET Environment.Variables.SellerArray.Item[sa].SellerName= Environment.Variables.request.Item[h].SellerName;
+				SET Environment.Variables.SellerArray.Item[sa].Amount = CAST(CAST(Environment.Variables.request.Item[h].totalSellingPrice AS FLOAT)*1000 AS INTEGER);
+				IF(Environment.Variables.request.Item[h].ItemType IN ( 'HB','VHB')) THEN
+					SET Environment.Variables.SellerArray.Item[sa].ItemLength = '50';
+					SET Environment.Variables.SellerArray.Item[sa].ItemWidth = '50';
+					SET Environment.Variables.SellerArray.Item[sa].ItemHeight = '100';
+					SET Environment.Variables.SellerArray.Item[sa].ItemWeight = '60';
+				ELSE
+				  	SET Environment.Variables.SellerArray.Item[sa].ItemLength = '20';
+				  	SET Environment.Variables.SellerArray.Item[sa].ItemWidth = '20';
+				  	SET Environment.Variables.SellerArray.Item[sa].ItemHeight = '30';
+				  	SET Environment.Variables.SellerArray.Item[sa].ItemWeight = '3';
+				END IF;
+								
+				SET sa = sa+1;
+			END IF;
+		END IF;
+		SET h=h+1;
+	END WHILE checkItem;
+END IF;
+
+IF (Environment.Variables.ShippingCarrier = 'Y') THEN 
+	SET otransaction.ShippingCarrier='MP';
+ELSEIF (Environment.Variables.IsHeavyBulky='Y' OR Environment.Variables.IsVeryHeavyBulky='Y') THEN
+	SET otransaction.ShippingCarrier='CAP';
+ELSE
+	SET otransaction.ShippingCarrier='ALL';
+END IF;
+SET oShipping.ShipmentDate=CAST(CAST(shipDate AS DATE) AS CHARACTER FORMAT 'dd-MM-yyyy');
+SET oShipping.Amount=amountStr;
+--Setting the destination address from the source input request
+SET oShipping.DestinationStreet1=eInputRef.shippingAddress.addressLines.Item;
+SET oShipping.DestinationZip=eInputRef.shippingAddress.postcode;
+SET oShipping.DestinationSuburb=eInputRef.shippingAddress.city;
+SET oShipping.DestinationState=eInputRef.shippingAddress.state;
+SET oShipping.DestinationCountry=eInputRef.shippingAddress.country;
+--As this message flow will be called for WCS registered user only. Types of memberes this flow will be called are
+--Gold, Silver, Platinum, Member and delivery Club
+IF(eInputRef.customer.loyalty.Item.value IS NOT NULL AND eInputRef.customer.loyalty.Item.value<>'' AND
+eInputRef.customer.loyalty.Item.value <> 'null')THEN
+SET oShipping.MemberType=eInputRef.customer.loyalty.Item.value;
+ELSE
+	SET oShipping.MemberType='Member';
+END IF;
+IF(eInputRef.customer.segments.Item.name IS NOT NULL AND eInputRef.customer.segments.Item.name<>'')THEN
+IF(eInputRef.customer.segments.Item.name='deliveryClub')THEN
+SET oShipping.MemberType='Delivery Club';
+END IF;
+END IF;
+--Setting the static value for FeatureType, FeatureTime, FeatureDate is set from OMS response shipDate,
+--FeatureAmount is set from cart total price
+SET oShipping.FeatureType='PICKUP_TIME';
+SET oShipping.FeatureDate=CAST(CAST(shipDate AS DATE) AS CHARACTER FORMAT 'yyyy-MM-dd');
+SET oShipping.FeatureTime='12:00:00';
+SET oShipping.FeatureAmount=amountStr;
+--Setting the product ID and the item dimentions based on the itemType
+IF (Environment.Variables.IsHeavyBulky='Y' OR Environment.Variables.IsVeryHeavyBulky='Y') THEN
+	IF(Environment.Variables.IsVeryHeavyBulky='Y')THEN
+	SET oShipping.ProductID='S1V';
+ELSE
+	SET oShipping.ProductID='SHV';
+END IF;
+SET oShipping.TotalLength='50';
+SET oShipping.TotalWidth='50';
+SET oShipping.TotalHeight='100';
+SET oShipping.TotalWeight='60';
+ELSE
+	SET oShipping.TotalLength='20';
+	SET oShipping.TotalWidth='20';
+	SET oShipping.TotalHeight='30';
+	SET oShipping.TotalWeight='3';
+END IF;
+--Setting the packaging type to default value as per ACH requirement
+SET oShipping.PackagingType='SAT';
+
+-- #MP
+			--Additional attributes mapping if item is from MP
+			IF(Environment.Variables.ShippingCarrier = 'Y') THEN	
+				--Mapping for Shipment array attributes			
+				  CREATE FIELD oShipping.Shipment IDENTITY(JSON.Array)Shipment;
+				  DECLARE shipmentRef REFERENCE TO oShipping.Shipment;
+				  SET shipmentRef.Item.ShipmentReference = '';
+				  SET shipmentRef.Item.SenderReference = Environment.Variables.SalesOrderNo;
+--				  --Mapping for ShipmentItem array attributes
+				  CREATE LASTCHILD OF oShipping.Item.ShipmentItem IDENTITY(JSON.Array)ShipmentItem;
+				  SET oShipping.Item.ShipmentItem[] = Environment.Variables.SellerArray.Item[];
+--				  DECLARE oShippingItemRef REFERENCE TO oShipping.Item.ShipmentItem;
+--				  DECLARE i,j INT;
+--				  SET i = 1;
+--				  SET j = CARDINALITY(Environment.Variables.SellerID.value[]);
+--				  WHILE (i <= j) DO		 --each MP item with same shipnode  
+--					  SET oShippingItemRef.Item[i].ItemCode = Environment.Variables.ItemCode.value[i];
+--					  SET oShippingItemRef.Item[i].Quantity = Environment.Variables.Quantity.value[i];
+--					  SET oShippingItemRef.Item[i].SellerID = Environment.Variables.SellerID.value[i];
+--					  SET oShippingItemRef.Item[i].ItemType = Environment.Variables.ItemType.value[i];
+--					  SET oShippingItemRef.Item[i].SellerName = Environment.Variables.SellerName.value[i];
+--					  SET oShippingItemRef.Item[i].Description = ''; --TBD
+--					  SET oShippingItemRef.Item[i].Amount = CAST(CAST(Environment.Variables.Amount.value[i] AS FLOAT)*1000 AS INTEGER);
+--					  IF (Environment.Variables.ItemType.value[i] IN('HB','VHB')) THEN
+--					  	SET oShippingItemRef.Item[i].ItemLength = '50';
+--					  	SET oShippingItemRef.Item[i].ItemWidth = '50';
+--					  	SET oShippingItemRef.Item[i].ItemHeight = '100';
+--					  	SET oShippingItemRef.Item[i].ItemWeight = '60';
+--					  ELSE
+--					  	SET oShippingItemRef.Item[i].ItemLength = '20';
+--					  	SET oShippingItemRef.Item[i].ItemWidth = '20';
+--					  	SET oShippingItemRef.Item[i].ItemHeight = '30';
+--					  	SET oShippingItemRef.Item[i].ItemWeight = '3';
+--					  END IF;
+--					  SET oShippingItemRef.Item[i].CommercialValue = '';
+--					  SET oShippingItemRef.Item[i].ClasificationType = '';
+--					  SET oShippingItemRef.Item[i].PackagingType = 'SAT'; --To be confirmed by ACH
+--					  
+--					  SET i = i + 1;
+--				  END WHILE;
+			END IF;
+			SET Environment.Variables.ItemCode = NULL;
+			SET Environment.Variables.Quantity = NULL;
+			SET Environment.Variables.SellerID = NULL;
+			SET Environment.Variables.ItemType = NULL;
+			SET Environment.Variables.SellerName = NULL;
+			SET Environment.Variables.Amount = NULL;
+			-- #MP
+
+
+END;
+END MODULE;
+
+--Module to process the ACH response based on the ACH response code
+CREATE COMPUTE MODULE CMP_ProcessACHResponse
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		--Mapping the success ACH response
+		IF(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code"='200')THEN
+		--1000 is for Success 1112 is for success with warning
+		IF (InputRoot.JSON.Data.Result.ResponseCode IN('1000', '1112')) THEN
+			SET Environment.JSON.response[Environment.Variables.i] = InputRoot.JSON;
+			SET Environment.Variables.ACHResponse.Status = 'SUCCESS';
+			--Mapping failure response from ACH
+		ELSEIF (InputRoot.JSON.Data.Result.ResponseCode NOT IN ('1000','1112'))THEN
+			SET Environment.Variables.ACHResponse.Status = 'ERROR';
+			SET Environment.Variables.ACHResponse.ResponseCode = 480;
+			SET Environment.Variables.ACHResponse.ErrorCode = InputRoot.JSON.Data.Result.ResponseCode;
+			SET Environment.Variables.ACHResponse.ErrorMessage = coalesce(InputRoot.JSON.Data.ProviderResps.ProviderResp.Item.ProviderResponseMessage, InputRoot.JSON.Data.Result.ResponseMessage);
+			PROPAGATE TO TERMINAL 'out';
+			RETURN FALSE;
+		END IF;
+		--Incase of ACH returning bad request error
+		ELSEIF(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code"='400')THEN
+		SET Environment.Variables.ACHResponse.Status = 'ERROR';
+		CREATE LASTCHILD OF Environment.Variables.ACHErrorResponse DOMAIN('JSON') PARSE(InputRoot.BLOB.BLOB,546,1208);
+		SET Environment.Variables.ACHResponse.ResponseCode = Environment.Variables.ACHErrorResponse.JSON.Data.status;
+		SET Environment.Variables.ACHResponse.ErrorCode = Environment.Variables.ACHErrorResponse.JSON.Data.status;
+		SET Environment.Variables.ACHResponse.ErrorMessage = coalesce(Environment.Variables.ACHErrorResponse.JSON.Data.error, Environment.Variables.ACHErrorResponse.JSON.Data.message);
+		PROPAGATE TO TERMINAL 'out';
+		RETURN FALSE;
+	ELSE
+		--Incase of ACH down map the status to Exception
+		SET Environment.Variables.ACHResponse.Status = 'EXCEPTION';
+		PROPAGATE TO TERMINAL 'out';
+		RETURN FALSE;
+	END IF;
+	RETURN FALSE;
+END;
+END MODULE;
+
+--Module to create the request for Lambda API
+CREATE COMPUTE MODULE CMP_BuildLambdaRequest
+	DECLARE LAMBDA_CONTENT_TYPE EXTERNAL CHARACTER;
+	DECLARE LAMBDA_API_KEY EXTERNAL CHARACTER;
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		DECLARE responseCount INTEGER 1;
+		DECLARE responseCard INTEGER CARDINALITY(Environment.JSON.response[]);
+		--Mapping the Consolidated ACH response to environment variable
+		WHILE (responseCount<=responseCard)DO
+			SET Environment.XMLNSC.ACHResponse.Item[responseCount].shipNode=Environment.JSON.response[responseCount].Data.Result.MerchantID;
+			DECLARE oCarrierCount INTEGER 1;
+			DECLARE oCarrierCard INTEGER CARDINALITY(Environment.JSON.response[responseCount].Data.ShippingServices.ShippingService.Item[]);
+			WHILE (oCarrierCount<=oCarrierCard)DO
+				SET Environment.XMLNSC.ACHResponse.Item[responseCount].Item[oCarrierCount].shippingCarrier=Environment.JSON.response[responseCount].Data.ShippingServices.ShippingService.Item[oCarrierCount].ShippingCarrier;
+				DECLARE oServiceCount INTEGER 1;
+				DECLARE oServiceCard INTEGER CARDINALITY(Environment.JSON.response[responseCount].Data.ShippingServices.ShippingService.Item[oCarrierCount].ShipmentResult.Item.ShipmentItemResult.Item[]);
+				WHILE (oServiceCount<=oServiceCard) DO
+					SET Environment.XMLNSC.ACHResponse.Item[responseCount].Item[oCarrierCount].Item[oServiceCount].productID=Environment.JSON.response[responseCount].Data.ShippingServices.ShippingService.Item[oCarrierCount].ShipmentResult.Item.ShipmentItemResult.Item[oServiceCount].ProductID;
+					SET Environment.XMLNSC.ACHResponse.Item[responseCount].Item[oCarrierCount].Item[oServiceCount].totalCost=Environment.JSON.response[responseCount].Data.ShippingServices.ShippingService.Item[oCarrierCount].ShipmentResult.Item.ShipmentItemResult.Item[oServiceCount].TotalCost;
+					SET Environment.XMLNSC.ACHResponse.Item[responseCount].Item[oCarrierCount].Item[oServiceCount].recommendedAmount=Environment.JSON.response[responseCount].Data.ShippingServices.ShippingService.Item[oCarrierCount].ShipmentResult.Item.ShipmentItemResult.Item[oServiceCount].RecommendedAmount;
+					SET Environment.XMLNSC.ACHResponse.Item[responseCount].Item[oCarrierCount].Item[oServiceCount].serviceType=Environment.JSON.response[responseCount].Data.ShippingServices.ShippingService.Item[oCarrierCount].ShipmentResult.Item.ShipmentItemResult.Item[oServiceCount].ServiceType;
+					SET oServiceCount=oServiceCount+1;
+				END WHILE;
+				SET oCarrierCount=oCarrierCount+1;
+			END WHILE;
+			SET responseCount=responseCount+1;
+		END WHILE;
+
+		CREATE FIELD OutputRoot.HTTPRequestHeader;
+		--Setting the content type and API Key for Lambda API. This key varies across the environment
+		SET OutputRoot.HTTPRequestHeader."Content-Type" = LAMBDA_CONTENT_TYPE;
+		SET OutputRoot.HTTPRequestHeader."x-api-key" =LAMBDA_API_KEY;
+		CREATE FIELD OutputRoot.JSON.Data;
+		DECLARE oRef REFERENCE TO OutputRoot.JSON.Data;
+		CREATE FIELD oRef.stores IDENTITY (JSON.Array)stores;
+		DECLARE oStoreRef REFERENCE TO oRef.stores;
+		DECLARE i INTEGER 1;
+		DECLARE count INTEGER CARDINALITY(Environment.XMLNSC.ACHResponse.Item[]);
+		--Mapping the Environment tree into Lambda request which were mapped from Consolidated ACH response
+		WHILE (i<=count)DO
+			SET oStoreRef.Item[i].shipNode=Environment.XMLNSC.ACHResponse.Item[i].shipNode;
+			-- Map SellerType
+			IF (Environment.XMLNSC.ACHResponse.Item[i].sellerId = '-1') THEN
+				SET oStoreRef.Item[i].sellerType = 'Myer';
+			ELSE
+				SET oStoreRef.Item[i].sellerType = 'MP';
+			END IF;
+			SET oStoreRef.Item[i].state=Environment.Variables.sendToLambda.state;
+			DECLARE carrierCount INTEGER CARDINALITY(Environment.XMLNSC.ACHResponse.Item[i].Item[]);
+			CREATE FIELD oStoreRef.Item[i].shippingServices IDENTITY (JSON.Array)shippingServices;
+			DECLARE j INTEGER 1;
+			DECLARE oShippingServicesRef REFERENCE TO oStoreRef.Item[i].shippingServices;
+			WHILE(j<=carrierCount)DO
+			SET oShippingServicesRef.Item[j].shippingCarrier=Environment.XMLNSC.ACHResponse.Item[i].Item[j].shippingCarrier;
+			SET oShippingServicesRef.Item[j].shippingCarrier=Environment.XMLNSC.ACHResponse.Item[i].Item[j].sellerId; -- Add as part of MP change
+			CREATE FIELD oShippingServicesRef.Item[j].shipmentItemResult IDENTITY (JSON.Array)shipmentItemResult;
+			DECLARE oShipmentItemRef REFERENCE TO oShippingServicesRef.Item[j].shipmentItemResult;
+			DECLARE h INTEGER 1;
+			DECLARE shipmentResultCount INTEGER CARDINALITY(Environment.XMLNSC.ACHResponse.Item[i].Item[j].Item[]);
+			WHILE(h<=shipmentResultCount)DO
+			SET oShipmentItemRef.Item[h].productID=Environment.XMLNSC.ACHResponse.Item[i].Item[j].Item[h].productID;
+			SET oShipmentItemRef.Item[h].totalCost=Environment.XMLNSC.ACHResponse.Item[i].Item[j].Item[h].totalCost;
+			SET oShipmentItemRef.Item[h].recommendedAmount=Environment.XMLNSC.ACHResponse.Item[i].Item[j].Item[h].recommendedAmount;
+			SET oShipmentItemRef.Item[h].serviceType=Environment.XMLNSC.ACHResponse.Item[i].Item[j].Item[h].serviceType;
+			SET h=h+1;
+		END WHILE;
+		SET j=j+1;
+	END WHILE;
+	SET i=i+1;
+END WHILE;
+RETURN TRUE;
+END;
+END MODULE;
+
+--Module to process the Lambda response based on the lambda response code
+CREATE COMPUTE MODULE CMP_ProcessLambdaResponse
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		--Mapping the success Lambda response
+		IF(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code"=200)THEN
+		DECLARE i INTEGER 1;
+		DECLARE sourceDeliveryOption CHARACTER;
+		SET Environment.Variables.LambdaResponse.Status='SUCCESS';
+		IF (Environment.Variables.WCSRequest.deliveryOption = 'sameday') THEN
+			SET sourceDeliveryOption ='Same Day';
+		ELSEIF (Environment.Variables.WCSRequest.deliveryOption = 'nextday') THEN
+			SET sourceDeliveryOption ='EXPRESS';
+		ELSEIF (Environment.Variables.WCSRequest.deliveryOption = 'standard') THEN
+			SET sourceDeliveryOption ='STANDARD';
+		END IF;		
+		--Fetching the productID and Shipping Carrier from the Lambda response based on the 
+		--customer selected delivery Option
+		SET Environment.JSON.LambdaResponse.Item[i]=
+		THE(SELECT
+		I.productID AS productID,
+		I.shippingCarrier AS shippingCarrier
+		FROM
+		InputRoot.JSON.Data.Item[] AS I
+		WHERE (UPPER(I.serviceType)=UPPER(sourceDeliveryOption)));
+		PROPAGATE TO TERMINAL 'out';		
+		ELSEIF(InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code"<>200)THEN
+		CREATE LASTCHILD OF Environment.Variables.LambdaErrorResponse DOMAIN('JSON') PARSE(InputRoot.BLOB.BLOB);
+		SET Environment.Variables.LambdaResponse.Status = 'ERROR';
+		SET Environment.Variables.LambdaResponse.ErrorCode =InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code";
+		SET Environment.Variables.LambdaResponse.ErrorMessage =COALESCE(Environment.Variables.LambdaErrorResponse.JSON.Data.message, 'Lambda is down at this time to give response');
+		PROPAGATE TO TERMINAL 'out';
+	END IF;
+	RETURN FALSE;
+END;
+END MODULE;
+
+--Building the response back to source system(WCS)
+CREATE COMPUTE MODULE CMP_BuildWCSResponse
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		DECLARE iItemCount INTEGER;
+		CREATE FIELD OutputRoot.JSON.Data;
+		IF (InputRoot.XMLNSC.Error.ErrorDetails.Detail.ExceptionType = 'RecoverableException') THEN
+			SET OutputRoot.JSON.Data.errorCode='ERROR_CODE_3';
+			SET OutputRoot.JSON.Data.errorMessage=InputRoot.XMLNSC.Error.ErrorDetails.Detail.ErrorDiagnostics;
+			SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 415;
+			-- Parser exception while validating the request/response
+		ELSEIF (InputRoot.XMLNSC.Error.ErrorDetails.Detail.ExceptionType = 'ParserException') THEN
+			SET OutputRoot.JSON.Data.errorCode='ERROR_CODE_2';
+			SET OutputRoot.JSON.Data.errorMessage='Unsupported Media Type';
+			SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 415;
+			-- User generated exception like Mandatory field validation
+		ELSEIF (InputRoot.XMLNSC.Error.ErrorDetails.Detail.ExceptionType = 'UserException') THEN
+			SET OutputRoot.JSON.Data.errorCode='ERROR_CODE_1';
+			SET OutputRoot.JSON.Data.errorMessage=SUBSTRING(InputRoot.XMLNSC.Error.ErrorDetails.Detail.ErrorDiagnostics AFTER 'User generated exception ');
+			SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 400;
+			-- OMS and Temando down scenario
+		ELSEIF (Environment.Variables.ACHResponse.Status = 'EXCEPTION') AND (Environment.Variables.OMSService.Status = 'EXCEPTION') THEN
+			SET OutputRoot.JSON.Data.errorCode='ERROR_CODE_OMS_ACH_DOWN';
+			SET OutputRoot.JSON.Data.errorMessage='Both OMS and ACH Down';
+			SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 503;
+			--OMS fault response or excpetion scenario
+		ELSEIF (Environment.Variables.OMSService.Status = 'ERROR') THEN
+			-- Resetting the status
+			SET Environment.Variables.OMSService.Status = NULL;
+			SET OutputRoot.JSON.Data.errorCode=Environment.Variables.OMSService.ErrorCode;
+			SET OutputRoot.JSON.Data.errorMessage='OMS is throwing an error : '|| COALESCE(Environment.Variables.OMSService.ErrorDescription,Environment.Variables.ACHResponse.ErrorMessage);
+			--ACH fault response or exception scenario
+		ELSEIF (Environment.Variables.ACHResponse.Status = 'ERROR') THEN
+			-- Resetting the status
+			SET Environment.Variables.ACHResponse.Status = NULL;
+			SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = Environment.Variables.ACHResponse.ResponseCode;
+			SET OutputRoot.JSON.Data.errorCode=Environment.Variables.ACHResponse.ErrorCode;
+			SET OutputRoot.JSON.Data.errorMessage='ACH is throwing an error : '|| Environment.Variables.ACHResponse.ErrorMessage;
+			--Lambda failure response and down scenario
+		ELSEIF (Environment.Variables.LambdaResponse.Status = 'ERROR') THEN
+			-- Resetting the status
+			SET Environment.Variables.LambdaResponse.Status = NULL;
+			SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = Environment.Variables.LambdaResponse.ErrorCode;
+			SET OutputRoot.JSON.Data.errorCode=Environment.Variables.LambdaResponse.ErrorCode;
+			SET OutputRoot.JSON.Data.errorMessage='Lambda Service throwing an error : '||Environment.Variables.LambdaResponse.ErrorMessage;
+			--OMS inventory unallocated or ACH down scenario
+		ELSEIF (Environment.Variables.XMLKeyFields.ActionCode = 'CANCEL') OR
+			(Environment.Variables.XMLKeyFields.ACHCall = 'N') OR
+			(Environment.Variables.XMLKeyFields.ReservationStatus = 'Unallocated') OR
+			(Environment.Variables.ACHResponse.Status = 'EXCEPTION') THEN
+			-- For successful OMS response
+			IF (Environment.Variables.OMSService.Status = 'SUCCESS') THEN
+				SET OutputRoot.JSON.Data.orderId=Environment.Variables.SalesOrderNo;
+				SET OutputRoot.JSON.Data.timestamp=CAST(CURRENT_TIMESTAMP AS CHARACTER FORMAT 'yyyy-MM-dd'' ''HH:mm:ssZZZZZ');
+				SET OutputRoot.JSON.Data.reservationStatus=
+				CASE Environment.Variables.XMLKeyFields.ReservationStatus
+				WHEN 'Allocated' THEN 'Y'
+				ELSE 'N'
+				END;
+				SET OutputRoot.JSON.Data.omsRespondedFlag='Y';
+				SET OutputRoot.JSON.Data.temandoRespondedFlag='N';
+				SET OutputRoot.JSON.Data.quoteId=COALESCE(Environment.Variables.WCSRequest.quoteId,'');
+				-- Resetting the status
+				SET Environment.Variables.OMSService.Status = NULL;
+				-- In case of RESERVATION call
+				IF (Environment.Variables.XMLKeyFields.ActionCode = 'RESERVE') THEN
+					SET iItemCount = 1;
+					FOR refPromiseLine AS Environment.Variables.OMSResponse.PromiseHeader.PromiseLines.PromiseLine[] DO
+						CREATE FIELD OutputRoot.JSON.Data.orderItems IDENTITY (JSON.Array)orderItems;
+						DECLARE oOrderItemRef REFERENCE TO OutputRoot.JSON.Data.orderItems;
+						SET oOrderItemRef.Item[iItemCount].orderItemId = refPromiseLine.LineId;
+						SET oOrderItemRef.Item[iItemCount].itemNumber = refPromiseLine.ItemID;
+						SET oOrderItemRef.Item[iItemCount].requestedQuantity = CAST(CAST(refPromiseLine.Reservations.QtyToBeReserved AS DECIMAL)AS INTEGER);
+						SET oOrderItemRef.Item[iItemCount].availableQuantity = CAST(CAST(refPromiseLine.Reservations.AvailableQty AS DECIMAL)AS INTEGER);
+
+						IF (Environment.Variables.ACHResponse.Status = 'EXCEPTION') AND (Environment.Variables.WCSRequest.deliveryOption = 'standard') THEN
+							SET oOrderItemRef.Item[iItemCount].reservedQuantity = CAST(CAST(refPromiseLine.Reservations.AvailableQty AS DECIMAL)AS INTEGER);
+						ELSE
+							SET oOrderItemRef.Item[iItemCount].reservedQuantity = 0;
+						END IF;
+						IF (Environment.Variables.ACHResponse.Status = 'EXCEPTION') AND (Environment.Variables.WCSRequest.deliveryOption = 'standard') THEN
+							SET oOrderItemRef.Item[iItemCount].inventoryStatus = 'Allocated';
+						ELSE
+							SET oOrderItemRef.Item[iItemCount].inventoryStatus = 'Unallocated';
+						END IF;
+						CREATE FIELD oOrderItemRef.Item[iItemCount].sourceStores IDENTITY (JSON.Array)sourceStores;
+						--Setting the default shipnode to 999
+						SET oOrderItemRef.Item[iItemCount].sourceStores.Item[1].storeId =
+						COALESCE(refPromiseLine.Reservations.Reservation.ShipNode,999);
+						IF (Environment.Variables.ACHResponse.Status = 'EXCEPTION') AND (Environment.Variables.WCSRequest.deliveryOption = 'standard') THEN
+							SET oOrderItemRef.Item[iItemCount].sourceStores.Item[1].reservedQuantity = CAST(CAST(refPromiseLine.Reservations.AvailableQty AS DECIMAL)AS INTEGER);
+						ELSE
+							SET oOrderItemRef.Item[iItemCount].sourceStores.Item[1].reservedQuantity = 0;
+						END IF;
+						SET iItemCount = iItemCount + 1;
+					END FOR;
+					CREATE FIELD OutputRoot.JSON.Data.attributes IDENTITY (JSON.Array)attributes;
+					--Cancellation call
+				ELSE
+					CREATE FIELD OutputRoot.JSON.Data.orderItems IDENTITY (JSON.Array)orderItems;
+					DECLARE oOrderItemRef REFERENCE TO OutputRoot.JSON.Data.orderItems;
+					SET oOrderItemRef.Item[1].orderItemId = Environment.Variables.XMLKeyFields.OrderItemID;
+					SET oOrderItemRef.Item[1].item.itemNumber =
+					Environment.Variables.OMSResponse.PromiseHeader.OriginalReservationDetails.CancelReservation[1].ItemID;
+					SET oOrderItemRef.Item[1].item.itemType =
+					Environment.Variables.WCSRequest.orderItems.Item[1].item.itemType;
+					SET oOrderItemRef.Item[1].item.requestedQuantity =
+					CAST(CAST(Environment.Variables.WCSRequest.orderItems.Item[1].item.requestedQuantity AS DECIMAL)AS INTEGER);
+					SET oOrderItemRef.Item[1].item.totalSellingPrice =
+					Environment.Variables.WCSRequest.orderItems.Item[1].item.totalSellingPrice;
+					SET oOrderItemRef.Item[1].requestedQuantity =
+					CAST(CAST(THE(SELECT SUM(T.CancelledQty) FROM Environment.Variables.OMSResponse.PromiseHeader.OriginalReservationDetails.CancelReservation[] AS T) AS DECIMAL)AS INTEGER);
+					SET oOrderItemRef.Item[1].availableQuantity = CAST(CAST(Environment.Variables.WCSRequest.orderItems.Item[1].item.availableQuantity AS DECIMAL)AS INTEGER);
+					SET oOrderItemRef.Item[1].reservedQuantity = CAST(CAST(Environment.Variables.WCSRequest.orderItems.Item[1].lastReservation.Item[1].reservedQuantity AS DECIMAL)AS INTEGER);
+
+					IF (Environment.Variables.OMSResponse.PromiseHeader.OriginalReservationDetails.CancelReservation[1].CancelledQty =
+						Environment.Variables.OMSResponse.PromiseHeader.OriginalReservationDetails.CancelReservation[1].QtyToBeCancelled) THEN
+						SET oOrderItemRef.Item[1].inventoryStatus = 'Allocated';
+					ELSE
+						SET oOrderItemRef.Item[1].inventoryStatus = 'Unallocated';
+					END IF;
+
+					CREATE FIELD oOrderItemRef.Item[1].sourceStores IDENTITY (JSON.Array)sourceStores;
+					SET oOrderItemRef.Item[1].sourceStores.Item[1].storeId =
+					Environment.Variables.WCSRequest.orderItems.Item[1].item.sourceStores.Item[1].storeId;
+					SET oOrderItemRef.Item[1].sourceStores.Item[1].reservedQuantity =
+					CAST(CAST(Environment.Variables.WCSRequest.orderItems.Item[1].item.sourceStores.Item[1].reservedQuantity AS DECIMAL)AS INTEGER);
+				END IF;
+				CREATE FIELD OutputRoot.JSON.Data.attributes IDENTITY (JSON.Array)attributes;
+				-- This case will not occure in this context. Keeping this as per the old coding
+				-- OMS Down and no call to Temando
+			ELSE
+				SET OutputRoot.JSON.Data.errorCode=Environment.Variables.OMSService.ErrorCode;
+				SET OutputRoot.JSON.Data.errorMessage=COALESCE(Environment.Variables.OMSService.ErrorDescription,Environment.Variables.OMSService.ErrorMessage);
+			END IF;
+			-- OMS, ACH, Lambda give success response
+			ELSEIF(Environment.Variables.ACHResponse.Status = 'SUCCESS' AND Environment.Variables.OMSService.Status='SUCCESS' AND Environment.Variables.LambdaResponse.Status='SUCCESS') THEN
+			DECLARE sourceDeliveryOption CHARACTER;
+			DECLARE n INTEGER 1;
+			--Fetching the charge details from ACH response based on the Lambda returned product ID
+			SET Environment.JSON.ChargeDetails.Item[n]=
+			THE(SELECT
+			I.RecommendedAmount AS DeliveryCharge,
+			I.DiscountName AS DiscountName,
+			I.DiscountAmount AS DiscountAmount,
+			I.DiscountTotalTax AS DiscountTax
+			FROM
+			Environment.JSON.response[] AS R,
+			R.Data.ShippingServices.ShippingService.Item[] AS SS,
+			SS.ShipmentResult.Item[] AS SL,
+			SL.ShipmentItemResult.Item[] AS I,
+			Environment.JSON.LambdaResponse.Item[] AS L
+			WHERE ((UPPER(I.ProductID)=UPPER(L.productID)) AND SS.ShippingCarrier=L.shippingCarrier));
+
+			SET OutputRoot.JSON.Data.orderId=Environment.Variables.SalesOrderNo;
+			SET OutputRoot.JSON.Data.timestamp=CAST(CURRENT_TIMESTAMP AS CHARACTER FORMAT 'yyyy-MM-dd'' ''HH:mm:ssZZZZZ');
+			--Setting the discount reason only if the discount is available
+			IF(Environment.JSON.ChargeDetails.Item.DiscountAmount<>'0')THEN
+			SET OutputRoot.JSON.Data.discountReason=Environment.JSON.ChargeDetails.Item.DiscountName;
+		END IF;
+		SET OutputRoot.JSON.Data.reservationStatus=
+		CASE Environment.Variables.XMLKeyFields.ReservationStatus
+		WHEN 'Allocated' THEN 'Y'
+		ELSE 'N'
+		END;
+		SET OutputRoot.JSON.Data.omsRespondedFlag=
+		CASE Environment.Variables.OMSService.Status
+		WHEN 'SUCCESS' THEN 'Y'
+		ELSE 'N'
+		END;
+		SET OutputRoot.JSON.Data.temandoRespondedFlag='Y';
+		SET OutputRoot.JSON.Data.quoteId=COALESCE(Environment.Variables.WCSRequest.quoteId,'');
+
+		DECLARE itemDeliveryCharge DECIMAL;
+		DECLARE itemDeliveryTax DECIMAL;
+		DECLARE lastItemDeliveryCharge DECIMAL;
+		DECLARE lastItemDeliveryTax DECIMAL;
+		DECLARE itemDiscountCharge DECIMAL;
+		DECLARE itemDiscountTax DECIMAL;
+		DECLARE lastItemDiscountCharge DECIMAL;
+		DECLARE lastItemDiscountTax DECIMAL;
+		DECLARE lineCard INTEGER CARDINALITY(Environment.Variables.OMSResponse.PromiseHeader.PromiseLines.PromiseLine[]);
+		CREATE FIELD OutputRoot.JSON.Data.orderItems IDENTITY (JSON.Array)orderItems;
+		DECLARE deliveryCharge DECIMAL;
+		DECLARE deliveryTax DECIMAL;
+		DECLARE discountCharge DECIMAL;
+		DECLARE discountTax DECIMAL;
+		-- Calculating the delivery charge for whole cart. 
+		SET deliveryCharge= ROUND((CAST(Environment.JSON.ChargeDetails.Item.DeliveryCharge AS DECIMAL)+CAST(Environment.JSON.ChargeDetails.Item.DiscountAmount AS DECIMAL))/1000 ,2);
+		SET deliveryTax=ROUND(deliveryCharge/11,2);
+		SET discountTax=ROUND((ROUND(CAST(Environment.JSON.ChargeDetails.Item.DiscountAmount AS DECIMAL)/1000,2)/11),2);
+		SET discountCharge=ROUND(CAST(Environment.JSON.ChargeDetails.Item.DiscountAmount AS DECIMAL)/1000,2);
+		
+		-- Calculating the charges per line item
+		SET itemDeliveryCharge=ROUND((deliveryCharge-deliveryTax)/lineCard, 2);
+		SET itemDeliveryTax=ROUND(deliveryTax/lineCard, 2);
+		SET itemDiscountCharge=ROUND((discountCharge-discountTax)/lineCard, 2);
+		SET itemDiscountTax=ROUND(discountTax/lineCard, 2);
+		-- Calculating the last item's charges with proration logic
+		SET lastItemDeliveryCharge=(ROUND(CAST((deliveryCharge-deliveryTax)AS DECIMAL),2))-ROUND(((itemDeliveryCharge)*(lineCard-1)),2);
+		SET lastItemDeliveryTax=deliveryTax-ROUND(((itemDeliveryTax)*(lineCard-1)),2);
+		SET lastItemDiscountCharge=(ROUND(CAST((discountCharge-discountTax)AS DECIMAL),2))-ROUND(((itemDiscountCharge)*(lineCard-1)),2);
+		SET lastItemDiscountTax=discountTax-ROUND(((itemDiscountTax)*(lineCard-1)),2);
+
+		DECLARE lineCount INTEGER 1;
+		DECLARE i INTEGER 2;
+		FOR refSourceResponse AS Environment.Variables.request.Item[] DO
+			--Logic to identify the duplicate item in the environment tree. So that we will not repeat the item in sending the response
+			--incase of single item gets allocated in multiple shipnode.
+			SET Environment.Variables.DuplicateItem.Flag='N';
+			DECLARE oItemCount INTEGER 1;
+			DECLARE oItemCard INTEGER CARDINALITY(OutputRoot.JSON.Data.orderItems.Item[]);
+			checkDuplicateItem : WHILE (oItemCount<=oItemCard)DO
+				IF(OutputRoot.JSON.Data.orderItems.Item[oItemCount].orderItemId=refSourceResponse.orderItemId)THEN
+				SET Environment.Variables.DuplicateItem.Flag='Y';
+				SET Environment.Variables.DuplicateItem.Position=oItemCount;
+				LEAVE checkDuplicateItem;
+			END IF;
+			SET oItemCount=oItemCount+1;
+		END WHILE checkDuplicateItem;
+		IF (Environment.Variables.DuplicateItem.Flag='N')THEN
+			SET i=2;
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].orderItemId=refSourceResponse.orderItemId;
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].itemNumber=refSourceResponse.itemNumber;
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].requestedQuantity=COALESCE(CAST(CAST(refSourceResponse.QtyToBeReserved AS DECIMAL)AS INTEGER),0);
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].availableQuantity=COALESCE(CAST(CAST(refSourceResponse.AvailableQty AS DECIMAL)AS INTEGER),0);
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].reservedQuantity=COALESCE(CAST(CAST(refSourceResponse.TotalReservedQty AS DECIMAL)AS INTEGER),0);
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].inventoryStatus=Environment.Variables.XMLKeyFields.ReservationStatus;
+			--mapping the charges for last line item in the order
+			IF(lineCard=lineCount) THEN
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryCharge.amount=lastItemDeliveryCharge;
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryCharge.gst=lastItemDeliveryTax;
+			--mapping the charges for other than last line item in the order
+		ELSE
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryCharge.amount=itemDeliveryCharge;
+			SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryCharge.gst=itemDeliveryTax;
+		END IF;
+		-- Setting the insuranceCharge to 0 as MYER wont support
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].insuranceCharge.amount=0;
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].insuranceCharge.gst=0;
+		IF(lineCard=lineCount) AND lastItemDiscountCharge <> '0' THEN
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryDiscount.amount=lastItemDiscountCharge;
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryDiscount.gst=lastItemDiscountTax;
+		--mapping the charges for other than last line item in the order
+	ELSEIF itemDiscountCharge <> '0' THEN
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryDiscount.amount=itemDiscountCharge;
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryDiscount.gst=itemDiscountTax;
+	END IF;
+	CREATE FIELD OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores IDENTITY (JSON.Array)sourceStores;
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores.Item.storeId=refSourceResponse.ShipNode;
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores.Item.procureNode=refSourceResponse.ProcureToNode;
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores.Item.eta=CAST(CAST((CAST(refSourceResponse.ShipDate AS CHARACTER) || ' ' || CAST(CURRENT_TIME AS CHARACTER FORMAT 'HH:mm:ss')) AS TIMESTAMP) AS CHARACTER FORMAT 'yyyy-MM-dd'' ''HH:mm:ssZZZZZ');
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores.Item.reservedQuantity=COALESCE(CAST(CAST(refSourceResponse.NodeReservedQty AS DECIMAL)AS INTEGER),0);
+	SET lineCount=lineCount+1;
+ELSE
+	-- Populate only the sourceStores field values as this item is repeated
+	DECLARE duplicateItemCard INTEGER;
+	SET duplicateItemCard=Environment.Variables.DuplicateItem.Position;
+	SET OutputRoot.JSON.Data.orderItems.Item[duplicateItemCard].sourceStores.Item[i].storeId=refSourceResponse.ShipNode;
+	SET OutputRoot.JSON.Data.orderItems.Item[duplicateItemCard].sourceStores.Item[i].procureNode=refSourceResponse.ProcureToNode;
+	SET OutputRoot.JSON.Data.orderItems.Item[duplicateItemCard].sourceStores.Item[i].eta=CAST(CAST((CAST(refSourceResponse.ShipDate AS CHARACTER) || ' ' || CAST(CURRENT_TIME AS CHARACTER FORMAT 'HH:mm:ss')) AS TIMESTAMP) AS CHARACTER FORMAT 'yyyy-MM-dd'' ''HH:mm:ssZZZZZ');
+	SET OutputRoot.JSON.Data.orderItems.Item[duplicateItemCard].sourceStores.Item[i].reservedQuantity=COALESCE(CAST(CAST(refSourceResponse.NodeReservedQty AS DECIMAL)AS INTEGER),0);
+	SET i=i+1;
+END IF;
+END FOR;
+CREATE FIELD OutputRoot.JSON.Data.attributes IDENTITY (JSON.Array)attributes;
+-- ACH, Lambda are up OMS Down. ACH call will be made wth store 219 store
+ELSEIF(Environment.Variables.ACHResponse.Status = 'SUCCESS' AND Environment.Variables.OMSService.Status='EXCEPTION' AND Environment.Variables.LambdaResponse.Status='SUCCESS') THEN
+DECLARE sourceDeliveryOption CHARACTER;
+DECLARE n INTEGER 1;
+--Fetching the charge details from ACH response based on the Lambda returned product ID
+SET Environment.JSON.ChargeDetails.Item[n]=
+THE(SELECT
+I.RecommendedAmount AS DeliveryCharge,
+I.DiscountName AS DiscountName,
+I.DiscountAmount AS DiscountAmount,
+I.DiscountTotalTax AS DiscountTax
+FROM
+Environment.JSON.response[] AS R,
+R.Data.ShippingServices.ShippingService.Item[] AS SS,
+SS.ShipmentResult.Item[] AS SL,
+SL.ShipmentItemResult.Item[] AS I,
+Environment.JSON.LambdaResponse.Item[] AS L
+WHERE ((UPPER(I.ProductID)=UPPER(L.productID)) AND SS.ShippingCarrier=L.shippingCarrier));
+SET OutputRoot.JSON.Data.orderId=Environment.Variables.SalesOrderNo;
+SET OutputRoot.JSON.Data.timestamp=CAST(CURRENT_TIMESTAMP AS CHARACTER FORMAT 'yyyy-MM-dd'' ''HH:mm:ssZZZZZ');
+--Setting the discount reason only if the discount is available
+IF(Environment.JSON.ChargeDetails.Item.DiscountAmount<>'0')THEN
+SET OutputRoot.JSON.Data.discountReason=Environment.JSON.ChargeDetails.Item.DiscountName;
+END IF;
+IF (Environment.Variables.OMSService.Status = 'EXCEPTION') AND (Environment.Variables.WCSRequest.deliveryOption = 'standard') THEN
+	SET Environment.Variables.XMLKeyFields.ReservationStatus = 'Allocated';
+END IF;
+SET OutputRoot.JSON.Data.reservationStatus= 'Y';
+SET OutputRoot.JSON.Data.omsRespondedFlag=
+CASE Environment.Variables.OMSService.Status
+WHEN 'SUCCESS' THEN 'Y'
+ELSE 'N'
+END;
+SET OutputRoot.JSON.Data.temandoRespondedFlag='Y';
+SET OutputRoot.JSON.Data.quoteId=COALESCE(Environment.Variables.WCSRequest.quoteId,'');
+DECLARE itemDeliveryCharge DECIMAL;
+DECLARE itemDeliveryTax DECIMAL;
+DECLARE lastItemDeliveryCharge DECIMAL;
+DECLARE lastItemDeliveryTax DECIMAL;
+DECLARE itemDiscountCharge DECIMAL;
+DECLARE itemDiscountTax DECIMAL;
+DECLARE lastItemDiscountCharge DECIMAL;
+DECLARE lastItemDiscountTax DECIMAL;
+DECLARE lineCard INTEGER CARDINALITY(Environment.Variables.WCSRequest.orderItems.Item[]);
+CREATE FIELD OutputRoot.JSON.Data.orderItems IDENTITY (JSON.Array)orderItems;
+DECLARE deliveryCharge DECIMAL;
+DECLARE deliveryTax DECIMAL;
+DECLARE discountCharge DECIMAL;
+DECLARE discountTax DECIMAL;
+
+		SET deliveryCharge= ROUND((CAST(Environment.JSON.ChargeDetails.Item.DeliveryCharge AS DECIMAL)+CAST(Environment.JSON.ChargeDetails.Item.DiscountAmount AS DECIMAL))/1000 ,2);
+		SET deliveryTax=ROUND(deliveryCharge/11,2);
+		SET discountTax=ROUND((ROUND(CAST(Environment.JSON.ChargeDetails.Item.DiscountAmount AS DECIMAL)/1000,2)/11),2);
+		SET discountCharge=ROUND(CAST(Environment.JSON.ChargeDetails.Item.DiscountAmount AS DECIMAL)/1000,2);
+		
+		-- Calculating the charges per line item
+		SET itemDeliveryCharge=ROUND((deliveryCharge-deliveryTax)/lineCard, 2);
+		SET itemDeliveryTax=ROUND(deliveryTax/lineCard, 2);
+		SET itemDiscountCharge=ROUND((discountCharge-discountTax)/lineCard, 2);
+		SET itemDiscountTax=ROUND(discountTax/lineCard, 2);
+		-- Calculating the last item's charges with proration logic
+		SET lastItemDeliveryCharge=(ROUND(CAST((deliveryCharge-deliveryTax)AS DECIMAL),2))-ROUND(((itemDeliveryCharge)*(lineCard-1)),2);
+		SET lastItemDeliveryTax=deliveryTax-ROUND(((itemDeliveryTax)*(lineCard-1)),2);
+		SET lastItemDiscountCharge=(ROUND(CAST((discountCharge-discountTax)AS DECIMAL),2))-ROUND(((itemDiscountCharge)*(lineCard-1)),2);
+		SET lastItemDiscountTax=discountTax-ROUND(((itemDiscountTax)*(lineCard-1)),2);
+CREATE FIELD OutputRoot.JSON.Data.orderItems IDENTITY (JSON.Array)orderItems;
+
+DECLARE lineCount INTEGER 1;
+FOR refSourceResponse AS Environment.Variables.WCSRequest.orderItems.Item[] DO
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].orderItemId=refSourceResponse.orderItemId;
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].itemNumber=refSourceResponse.item.itemNumber;
+	--mapping the field values requestedQuantity,availableQuantity, reservedQuantity, inventoryStatus
+	-- incase of standard delivery method
+	IF (Environment.Variables.WCSRequest.deliveryOption = 'standard') THEN
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].requestedQuantity=refSourceResponse.item.requestedQuantity;
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].availableQuantity=refSourceResponse.item.requestedQuantity;
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].reservedQuantity=refSourceResponse.item.requestedQuantity;
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].inventoryStatus='Allocated';
+		--mapping the field values requestedQuantity,availableQuantity, reservedQuantity, inventoryStatus
+		-- incase of delivery method other than standard
+	ELSE
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].requestedQuantity=refSourceResponse.item.requestedQuantity;
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].availableQuantity=0;
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].reservedQuantity=0;
+		SET OutputRoot.JSON.Data.orderItems.Item[lineCount].inventoryStatus='Unallocated';
+	END IF;
+	--mapping the charges for last line item in the order
+	IF(lineCard=lineCount) THEN
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryCharge.amount=lastItemDeliveryCharge;
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryCharge.gst=lastItemDeliveryTax;
+	--mapping the charges for other than last line item in the order
+ELSE
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryCharge.amount=itemDeliveryCharge;
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryCharge.gst=itemDeliveryTax;
+END IF;
+-- Setting the insuranceCharge to 0 as MYER wont support
+SET OutputRoot.JSON.Data.orderItems.Item[lineCount].insuranceCharge.amount=0;
+SET OutputRoot.JSON.Data.orderItems.Item[lineCount].insuranceCharge.gst=0;
+IF(lineCard=lineCount) AND lastItemDiscountCharge <> '0' THEN
+SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryDiscount.amount=lastItemDiscountCharge;
+SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryDiscount.gst=lastItemDiscountTax;
+--mapping the charges for other than last line item in the order
+ELSEIF itemDiscountCharge <> '0' THEN
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryDiscount.amount=itemDiscountCharge;
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].deliveryDiscount.gst=itemDiscountTax;
+END IF;
+CREATE FIELD OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores IDENTITY (JSON.Array)sourceStores;
+SET OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores.Item.storeId='219';
+SET OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores.Item.procureNode='';
+DECLARE shipLagDays INTEGER 1;
+SET OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores.Item.eta=CAST(CAST((CAST(CAST(CAST(CAST(CURRENT_DATE + CAST(shipLagDays AS INTERVAL DAY) AS CHARACTER)AS DATE) AS CHARACTER FORMAT 'yyyy-MM-dd') AS CHARACTER) || ' ' || CAST(CURRENT_TIME AS CHARACTER FORMAT 'HH:mm:ss')) AS TIMESTAMP) AS CHARACTER FORMAT 'yyyy-MM-dd'' ''HH:mm:ssZZZZZ');
+IF (Environment.Variables.WCSRequest.deliveryOption = 'standard') THEN
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores.Item.reservedQuantity=refSourceResponse.item.requestedQuantity;
+ELSE
+	SET OutputRoot.JSON.Data.orderItems.Item[lineCount].sourceStores.Item.reservedQuantity=0;
+END IF;
+SET lineCount=lineCount+1;
+END FOR;
+CREATE FIELD OutputRoot.JSON.Data.attributes IDENTITY (JSON.Array)attributes;
+END IF;
+RETURN TRUE;
+END;
+END MODULE;
+
